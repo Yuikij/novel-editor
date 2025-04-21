@@ -1,5 +1,7 @@
 "use client"
 
+export const runtime = 'edge';
+
 import { useState } from "react"
 import Link from "next/link"
 import { CharacterIcon } from "@/app/components/ui/icons"

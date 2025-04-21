@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import Link from "next/link"
 import { LogoIcon } from "@/app/components/ui/icons"
 import { Button } from "@/app/components/ui/button"
