@@ -358,7 +358,7 @@ export default function CharactersPage() {
 
       {modalState.isOpen && (modalState.mode === "add" || modalState.mode === "edit") && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg">
+          <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg max-h-[calc(100vh-32px)] overflow-y-auto">
             <h2 className="mb-4 text-xl font-bold">
               {modalState.mode === "add" ? "Create New Character" : "Edit Character"}
             </h2>
