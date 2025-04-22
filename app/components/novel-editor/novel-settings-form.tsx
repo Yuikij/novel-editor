@@ -39,6 +39,11 @@ export default function NovelSettingsForm({
   const [highlights, setHighlights] = useState<string[]>(project?.metadata?.highlights || [])
   const [writingRequirements, setWritingRequirements] = useState<string[]>(project?.metadata?.writingRequirements || [])
   const [requirementInput, setRequirementInput] = useState("")
+  
+  // AI Title generation state
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -126,6 +131,114 @@ export default function NovelSettingsForm({
     })
   }
 
+  const generateTitles = () => {
+    if (!form.genre) return
+    
+    setIsLoading(true)
+    
+    // Simulate API call - in a real application, this would call a backend service
+    setTimeout(() => {
+      // Generate sample titles based on genre and style
+      let titleSuggestions: string[] = []
+      
+      // Romance genre titles
+      if (form.genre === "言情" || form.genre === "现代言情") {
+        titleSuggestions = [
+          "心动时刻：都市爱恋",
+          "江南雨季",
+          "心之所向",
+          "春风十里",
+          "相遇在雨季",
+          "浮世绘爱恋"
+        ]
+      } 
+      // Fantasy genre titles
+      else if (form.genre === "玄幻" || form.genre === "仙侠") {
+        titleSuggestions = [
+          "九天神帝",
+          "修真世界",
+          "仙途问道",
+          "万古神王",
+          "剑道独尊",
+          "灵气复苏"
+        ]
+      }
+      // Mystery genre titles
+      else if (form.genre === "悬疑") {
+        titleSuggestions = [
+          "隐秘真相",
+          "迷雾之谜",
+          "暗夜追踪",
+          "谜城",
+          "深渊之眼",
+          "无人知晓"
+        ]
+      }
+      // Historical titles
+      else if (form.genre === "历史") {
+        titleSuggestions = [
+          "大明风华",
+          "朝代崛起",
+          "王朝霸业",
+          "盛唐传奇",
+          "江山如画",
+          "帝国的黄昏"
+        ]
+      }
+      // Sci-fi titles
+      else if (form.genre === "科幻") {
+        titleSuggestions = [
+          "星际迷航",
+          "量子危机",
+          "超维度",
+          "未来战场",
+          "星辰大海",
+          "时空裂隙"
+        ]
+      }
+      // Default titles
+      else {
+        titleSuggestions = [
+          "时光之旅",
+          "未知世界",
+          "命运交织",
+          "人生旅途",
+          "心之所向",
+          "万里长空"
+        ]
+      }
+      
+      // Add style-based modifiers
+      if (form.style === "甜宠") {
+        titleSuggestions = [...titleSuggestions, "甜蜜约定", "暖爱时光", "蜜糖日记", "心动瞬间"]
+      } else if (form.style === "虐心") {
+        titleSuggestions = [...titleSuggestions, "泪之痕", "伤逝", "暗夜倾城", "心碎时刻"]
+      } else if (form.style === "轻松") {
+        titleSuggestions = [...titleSuggestions, "欢乐时光", "轻松日记", "悠闲生活", "都市闲情"]
+      } else if (form.style === "治愈") {
+        titleSuggestions = [...titleSuggestions, "心灵疗愈", "温暖时光", "阳光小巷", "微风拂面"]
+      }
+      
+      // Add tag-based suggestions if available
+      if (form.metadata.tags && form.metadata.tags.length > 0) {
+        const tagBasedSuggestions = form.metadata.tags.map(tag => {
+          if (tag.includes("爱情") || tag.includes("恋爱")) return `${tag}物语`
+          if (tag.includes("冒险")) return `${tag}征途`
+          if (tag.includes("成长")) return `${tag}之路`
+          return `${tag}传说`
+        })
+        titleSuggestions = [...titleSuggestions, ...tagBasedSuggestions]
+      }
+      
+      // Filter out duplicates and limit to 6 suggestions
+      const uniqueSuggestions = Array.from(new Set(titleSuggestions))
+      setSuggestions(uniqueSuggestions.slice(0, 6))
+      
+      setIsLoading(false)
+      setShowSuggestions(true)
+    }, 1000)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -165,24 +278,75 @@ export default function NovelSettingsForm({
           <label htmlFor="title" className="block text-sm font-medium">
             小说名称
           </label>
-          <input
-            id="title"
-            name="title"
-            type="text"
-            required
-            value={form.title}
-            onChange={(e) => handleFormChange(e)}
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="作品名称"
-          />
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              id="title"
+              name="title"
+              type="text"
+              required
+              value={form.title}
+              onChange={(e) => handleFormChange(e)}
+              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              placeholder="作品名称"
+            />
+            <Button 
+              type="button"
+              onClick={generateTitles}
+              disabled={isLoading || !form.genre}
+              className="flex-shrink-0"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-2 h-4 w-4"
+              >
+                <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18" />
+              </svg>
+              AI 智能取名
+            </Button>
+          </div>
           
-          {/* Replace with the imported AiTitleGenerator */}
-          <AiTitleGenerator 
-            genre={form.genre}
-            style={form.style}
-            tags={form.metadata.tags}
-            onSelectTitle={handleSetTitle}
-          />
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="mt-3 rounded-md border p-3 bg-accent/20">
+              <h3 className="text-sm font-medium mb-2">智能标题建议</h3>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {suggestions.map((title, index) => (
+                  <div 
+                    key={index}
+                    className="flex items-center justify-between rounded-md bg-background px-3 py-2 text-sm cursor-pointer hover:bg-accent/30"
+                    onClick={() => {
+                      handleSetTitle(title);
+                      setShowSuggestions(false);
+                    }}
+                  >
+                    <span>{title}</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-4 w-4 text-muted-foreground"
+                    >
+                      <path d="M5 12h14" />
+                      <path d="m12 5 7 7-7 7" />
+                    </svg>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

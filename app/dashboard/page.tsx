@@ -155,25 +155,11 @@ export default function DashboardPage() {
                   Projects
                 </Link>
                 <Link
-                  href="/dashboard/characters"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <CharacterIcon className="h-5 w-5" />
-                  Characters
-                </Link>
-                <Link
                   href="/dashboard/worlds"
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
                   <WorldIcon className="h-5 w-5" />
                   Worlds
-                </Link>
-                <Link
-                  href="/dashboard/plots"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <PlotIcon className="h-5 w-5" />
-                  Plots
                 </Link>
                 <Link
                   href="/dashboard/analysis"

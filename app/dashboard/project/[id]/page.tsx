@@ -100,29 +100,6 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           <h1 className="text-2xl font-bold tracking-tight">江南纯爱小说</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleCharacterClick}>
-            <CharacterIcon className="mr-1 h-4 w-4" />
-            角色
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleWorldClick}>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="mr-1 h-4 w-4"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="2" y1="12" x2="22" y2="12" />
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-            </svg>
-            世界
-          </Button>
           <Button variant="outline" size="sm" onClick={handleAnalysisClick}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -157,6 +134,20 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           className="flex-1"
         >
           章节
+        </Button>
+        <Button
+          variant={activeTab === "characters" ? "default" : "ghost"}
+          onClick={() => setActiveTab("characters")}
+          className="flex-1"
+        >
+          角色
+        </Button>
+        <Button
+          variant={activeTab === "plots" ? "default" : "ghost"}
+          onClick={() => setActiveTab("plots")}
+          className="flex-1"
+        >
+          情节
         </Button>
         <Button
           variant={activeTab === "outline" ? "default" : "ghost"}
@@ -280,6 +271,141 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+        {activeTab === "characters" && (
+          <div className="rounded-lg border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">角色管理</h2>
+              <Button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mr-1 h-4 w-4"
+                >
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                添加角色
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="border rounded-lg p-4 hover:border-primary transition-colors">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">林</span>
+                  <div>
+                    <h3 className="font-medium">林雨荷</h3>
+                    <p className="text-xs text-muted-foreground">主角</p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground line-clamp-3">年轻的设计师，具有创新思维和坚韧性格，来自普通家庭。</p>
+                <div className="mt-3 flex justify-end">
+                  <Button variant="ghost" size="sm">编辑</Button>
+                </div>
+              </div>
+              <div className="border rounded-lg p-4 hover:border-primary transition-colors">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">陈</span>
+                  <div>
+                    <h3 className="font-medium">陈明辉</h3>
+                    <p className="text-xs text-muted-foreground">主角</p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground line-clamp-3">富商家族继承人，对传统文化有深厚兴趣，性格温和但有决断力。</p>
+                <div className="mt-3 flex justify-end">
+                  <Button variant="ghost" size="sm">编辑</Button>
+                </div>
+              </div>
+              <div className="border rounded-lg p-4 hover:border-primary transition-colors">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">周</span>
+                  <div>
+                    <h3 className="font-medium">周世豪</h3>
+                    <p className="text-xs text-muted-foreground">反派</p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground line-clamp-3">陈家商业伙伴的儿子，对陈明辉和林雨荷的关系心生嫉妒。</p>
+                <div className="mt-3 flex justify-end">
+                  <Button variant="ghost" size="sm">编辑</Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {activeTab === "plots" && (
+          <div className="rounded-lg border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">情节管理</h2>
+              <Button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mr-1 h-4 w-4"
+                >
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                添加情节
+              </Button>
+            </div>
+            <div className="space-y-4">
+              <div className="border rounded-md p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold">初次相遇</h3>
+                  <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100 rounded-full px-2 py-0.5">开端</span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">林雨荷在江南小镇的古玩市场偶然遇见正在寻找古画线索的陈明辉，两人因共同的兴趣开始交谈。</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-muted-foreground">章节: 第一章</span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm">编辑</Button>
+                    <Button variant="ghost" size="sm">展开</Button>
+                  </div>
+                </div>
+              </div>
+              <div className="border rounded-md p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold">画卷之谜</h3>
+                  <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 rounded-full px-2 py-0.5">发展</span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">陈明辉展示祖传画卷，引起林雨荷的兴趣。两人开始研究画卷中隐藏的设计元素，互相欣赏对方的才华。</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-muted-foreground">章节: 第二章</span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm">编辑</Button>
+                    <Button variant="ghost" size="sm">展开</Button>
+                  </div>
+                </div>
+              </div>
+              <div className="border rounded-md p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold">家族干预</h3>
+                  <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 rounded-full px-2 py-0.5">冲突</span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">陈家得知陈明辉与普通设计师交往，认为有损家族声誉，周世豪趁机挑拨离间，导致两人关系紧张。</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-muted-foreground">章节: 第三章</span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm">编辑</Button>
+                    <Button variant="ghost" size="sm">展开</Button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
