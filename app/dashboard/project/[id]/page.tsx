@@ -12,7 +12,8 @@ import { CharacterIcon } from "@/app/components/ui/icons"
 import CharacterForm from "@/app/components/novel-editor/character-form"
 import type { Character } from "@/app/types"
 import PlotForm from "@/app/components/novel-editor/plot-form"
-import type { PlotStructure } from "@/app/types"
+import type { PlotElement, Chapter } from "@/app/types"
+import ChapterForm from "@/app/components/novel-editor/chapter-form"
 
 // Sample chapter data
 const demoChapters = [
@@ -21,34 +22,54 @@ const demoChapters = [
     title: "江南烟雨",
     wordCount: 789,
     status: "completed" as const,
-    summary: "主角林雨荷在江南小镇上与陈明辉初次相遇。"
+    summary: "主角林雨荷在江南小镇上与陈明辉初次相遇。",
+    content: "",
+    order: 1,
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+    notes: ""
   },
   {
     id: "2",
     title: "画卷之谜",
     wordCount: 1250,
     status: "completed" as const,
-    summary: "陈明辉展示祖传画卷，引起林雨荷的兴趣。"
+    summary: "陈明辉展示祖传画卷，引起林雨荷的兴趣。",
+    content: "",
+    order: 2,
+    createdAt: "2024-01-02T00:00:00Z",
+    updatedAt: "2024-01-02T00:00:00Z",
+    notes: ""
   },
   {
     id: "3",
     title: "家族阻挠",
     wordCount: 980,
     status: "in-progress" as const,
-    summary: "陈家反对陈明辉与平民交往，周世豪登场。"
+    summary: "陈家反对陈明辉与平民交往，周世豪登场。",
+    content: "",
+    order: 3,
+    createdAt: "2024-01-03T00:00:00Z",
+    updatedAt: "2024-01-03T00:00:00Z",
+    notes: ""
   },
   {
     id: "4",
     title: "设计比赛",
     wordCount: 324,
     status: "draft" as const,
-    summary: "林雨荷参加设计比赛，遭遇对手刁难。"
+    summary: "林雨荷参加设计比赛，遭遇对手刁难。",
+    content: "",
+    order: 4,
+    createdAt: "2024-01-04T00:00:00Z",
+    updatedAt: "2024-01-04T00:00:00Z",
+    notes: ""
   }
 ]
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState<string>("write")
-  const [chapters] = useState(demoChapters)
+  const [chapters, setChapters] = useState<Chapter[]>(demoChapters)
   const [activeChapterId, setActiveChapterId] = useState<string>("1")
   const [showChapterSidebar, setShowChapterSidebar] = useState<boolean>(true)
   const [characters, setCharacters] = useState<Character[]>([])
@@ -60,15 +81,25 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     isOpen: false,
     mode: 'add',
   })
-  const [plots, setPlots] = useState<PlotStructure[]>([])
+  const [plots, setPlots] = useState<PlotElement[]>([])
   const [plotModalState, setPlotModalState] = useState<{
     isOpen: boolean;
     mode: 'add' | 'edit' | 'delete';
-    plot?: PlotStructure;
+    plot?: PlotElement;
   }>({
     isOpen: false,
     mode: 'add',
   })
+  const [outlines, setOutlines] = useState<PlotElement[]>([])
+  const [outlineModalState, setOutlineModalState] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; outline?: PlotElement }>({
+    isOpen: false,
+    mode: 'add',
+  })
+  const [chapterModalState, setChapterModalState] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; chapter?: Chapter }>({
+    isOpen: false,
+    mode: 'add',
+  })
+  const [deleteChapterState, setDeleteChapterState] = useState<{ isOpen: boolean; chapter?: Chapter }>({ isOpen: false })
 
   const toggleChapterSidebar = () => {
     setShowChapterSidebar(!showChapterSidebar)
@@ -130,7 +161,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setPlotModalState({ isOpen: true, mode: 'add' })
   }
 
-  const handleSavePlot = (plot: PlotStructure) => {
+  const handleSavePlot = (plot: PlotElement) => {
     if (plotModalState.mode === 'add') {
       setPlots([...plots, plot])
     } else if (plotModalState.mode === 'edit') {
@@ -143,11 +174,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setPlotModalState({ isOpen: false, mode: 'add' })
   }
 
-  const handleEditPlot = (plot: PlotStructure) => {
+  const handleEditPlot = (plot: PlotElement) => {
     setPlotModalState({ isOpen: true, mode: 'edit', plot })
   }
 
-  const handleDeletePlot = (plot: PlotStructure) => {
+  const handleDeletePlot = (plot: PlotElement) => {
     setPlotModalState({ isOpen: true, mode: 'delete', plot })
   }
 
@@ -156,6 +187,73 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       setPlots(plots.filter(p => p.id !== plotModalState.plot?.id))
       setPlotModalState({ isOpen: false, mode: 'add' })
     }
+  }
+
+  const handleAddOutline = () => {
+    setOutlineModalState({ isOpen: true, mode: 'add' })
+  }
+
+  const handleSaveOutline = (outline: PlotElement) => {
+    if (outlineModalState.mode === 'add') {
+      setOutlines([...outlines, outline])
+    } else if (outlineModalState.mode === 'edit') {
+      setOutlines(outlines.map(o => o.id === outline.id ? outline : o))
+    }
+    setOutlineModalState({ isOpen: false, mode: 'add' })
+  }
+
+  const handleCancelOutlineModal = () => {
+    setOutlineModalState({ isOpen: false, mode: 'add' })
+  }
+
+  const handleAddChapter = () => {
+    setChapterModalState({ isOpen: true, mode: 'add' })
+  }
+
+  const handleSaveChapter = (chapter: Chapter) => {
+    if (chapterModalState.mode === 'add') {
+      setChapters([...chapters, chapter])
+    } else if (chapterModalState.mode === 'edit') {
+      setChapters(chapters.map(c => c.id === chapter.id ? chapter : c))
+    }
+    setChapterModalState({ isOpen: false, mode: 'add' })
+  }
+
+  const handleCancelChapterModal = () => {
+    setChapterModalState({ isOpen: false, mode: 'add' })
+  }
+
+  const handleEditChapter = (chapter: Chapter) => {
+    setChapterModalState({ isOpen: true, mode: 'edit', chapter })
+  }
+
+  const handleDeleteChapter = (chapter: Chapter) => {
+    setDeleteChapterState({ isOpen: true, chapter })
+  }
+
+  const handleConfirmDeleteChapter = () => {
+    if (deleteChapterState.chapter) {
+      setChapters(chapters.filter(c => c.id !== deleteChapterState.chapter?.id))
+      setDeleteChapterState({ isOpen: false })
+    }
+  }
+
+  const handleCancelDeleteChapter = () => {
+    setDeleteChapterState({ isOpen: false })
+  }
+
+  const handleMoveChapter = (chapterId: string, direction: 'up' | 'down') => {
+    const idx = chapters.findIndex(c => c.id === chapterId)
+    if (idx === -1) return
+    let newChapters = [...chapters]
+    if (direction === 'up' && idx > 0) {
+      [newChapters[idx - 1], newChapters[idx]] = [newChapters[idx], newChapters[idx - 1]]
+    } else if (direction === 'down' && idx < newChapters.length - 1) {
+      [newChapters[idx], newChapters[idx + 1]] = [newChapters[idx + 1], newChapters[idx]]
+    }
+    // 重新设置order
+    newChapters = newChapters.map((c, i) => ({ ...c, order: i + 1 }))
+    setChapters(newChapters)
   }
 
   return (
@@ -313,7 +411,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           <div className="rounded-lg border p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">章节管理</h2>
-              <Button>
+              <Button onClick={handleAddChapter}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
@@ -333,27 +431,29 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               </Button>
             </div>
             <div className="space-y-3">
-              {chapters.map((chapter) => (
+              {chapters.sort((a, b) => a.order - b.order).map((chapter, idx) => (
                 <div key={chapter.id} className="flex items-center justify-between p-3 rounded-md border">
                   <div className="flex flex-col">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold">{chapter.title}</h3>
                       <span className={`text-xs rounded-full px-2 py-0.5 font-medium ${
-                        chapter.status === "completed" 
-                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" 
+                        chapter.status === "completed"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
                           : chapter.status === "in-progress"
-                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100" 
+                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
                           : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
                       }`}>
-                        {chapter.status === "completed" ? "已完成" : chapter.status === "in-progress" ? "进行中" : "草稿"}
+                        {chapter.status === "completed" ? "已完成" : chapter.status === "in-progress" ? "进行中" : chapter.status === "draft" ? "草稿" : "已编辑"}
                       </span>
                     </div>
                     <p className="text-sm text-muted-foreground">{chapter.summary}</p>
                     <span className="text-xs text-muted-foreground mt-1">字数: {chapter.wordCount}</span>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="sm">编辑</Button>
-                    <Button variant="ghost" size="sm" className="text-destructive">删除</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleMoveChapter(chapter.id, 'up')} disabled={idx === 0}>上移</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleMoveChapter(chapter.id, 'down')} disabled={idx === chapters.length - 1}>下移</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleEditChapter(chapter)}>编辑</Button>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteChapter(chapter)}>删除</Button>
                   </div>
                 </div>
               ))}
@@ -428,36 +528,36 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                 添加情节
               </Button>
             </div>
-            <div className="space-y-4">
-              {plots.map((plot) => (
-                <div key={plot.id} className="border rounded-md p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold">{plot.title}</h3>
-                    <span className="text-xs rounded-full bg-muted px-2 py-0.5">{plot.type}</span>
-                  </div>
-                  <div className="space-y-1 mb-2">
-                    {plot.elements.map((el, i) => (
-                      <div key={el.id} className="flex gap-2 items-center">
-                        <span className="font-medium">{el.title}</span>
-                        <span className="text-xs text-muted-foreground">({el.status})</span>
-                        <span className="text-xs text-muted-foreground">{el.description}</span>
+            {chapters.map((chapter) => (
+              <div key={chapter.id} className="mb-6">
+                <h3 className="text-lg font-semibold mb-2">{chapter.title}</h3>
+                <div className="space-y-4">
+                  {plots.filter(p => p.chapterId === chapter.id).map((plot) => (
+                    <div key={plot.id} className="border rounded-md p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-semibold">{plot.title}</span>
+                        <span className="text-xs rounded-full bg-muted px-2 py-0.5">{plot.status}</span>
                       </div>
-                    ))}
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditPlot(plot)}>编辑</Button>
-                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeletePlot(plot)}>删除</Button>
-                  </div>
+                      <p className="text-sm text-muted-foreground mb-2">{plot.description}</p>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleEditPlot(plot)}>编辑</Button>
+                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeletePlot(plot)}>删除</Button>
+                      </div>
+                    </div>
+                  ))}
+                  {plots.filter(p => p.chapterId === chapter.id).length === 0 && (
+                    <p className="text-sm text-muted-foreground">暂无情节</p>
+                  )}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         )}
         {activeTab === "outline" && (
           <div className="rounded-lg border p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">故事大纲</h2>
-              <Button>
+              <Button onClick={handleAddOutline}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
@@ -578,6 +678,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               plot={plotModalState.plot}
               onSave={handleSavePlot}
               onCancel={handleCancelPlotModal}
+              chapters={chapters}
             />
           </div>
         </div>
@@ -592,6 +693,49 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={handleCancelPlotModal}>取消</Button>
               <Button variant="destructive" onClick={handleConfirmDeletePlot}>删除</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {outlineModalState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg max-h-[calc(100vh-32px)] overflow-y-auto">
+            <h2 className="mb-4 text-xl font-bold">
+              {outlineModalState.mode === "add" ? "创建新情节点" : "编辑情节点"}
+            </h2>
+            <PlotForm
+              plot={outlineModalState.outline}
+              onSave={handleSaveOutline}
+              onCancel={handleCancelOutlineModal}
+              chapters={chapters}
+            />
+          </div>
+        </div>
+      )}
+      {chapterModalState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg max-h-[calc(100vh-32px)] overflow-y-auto">
+            <h2 className="mb-4 text-xl font-bold">
+              {chapterModalState.mode === "add" ? "创建新章节" : "编辑章节"}
+            </h2>
+            <ChapterForm
+              chapter={chapterModalState.chapter}
+              onSave={handleSaveChapter}
+              onCancel={handleCancelChapterModal}
+            />
+          </div>
+        </div>
+      )}
+      {deleteChapterState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg">
+            <h2 className="mb-2 text-xl font-bold">删除章节</h2>
+            <p className="mb-4 text-muted-foreground">
+              确定要删除章节"{deleteChapterState.chapter?.title}"吗？此操作不可撤销。
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleCancelDeleteChapter}>取消</Button>
+              <Button variant="destructive" onClick={handleConfirmDeleteChapter}>删除</Button>
             </div>
           </div>
         </div>

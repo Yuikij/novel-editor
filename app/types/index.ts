@@ -57,13 +57,14 @@ export interface WorldElement {
 }
 
 // Chapter Types
+export type ChapterStatus = 'draft' | 'in-progress' | 'completed' | 'edited'
 export interface Chapter {
   id: string
   title: string
   content: string
   summary?: string
   order: number
-  status: 'draft' | 'in-progress' | 'completed' | 'edited'
+  status: ChapterStatus
   createdAt: string
   updatedAt: string
   wordCount: number
