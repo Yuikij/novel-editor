@@ -9,6 +9,10 @@ import { Button } from "@/app/components/ui/button"
 import NovelEditor from "@/app/components/novel-editor/novel-editor"
 import ChapterSidebar from "@/app/components/novel-editor/chapter-sidebar"
 import { CharacterIcon } from "@/app/components/ui/icons"
+import CharacterForm from "@/app/components/novel-editor/character-form"
+import type { Character } from "@/app/types"
+import PlotForm from "@/app/components/novel-editor/plot-form"
+import type { PlotStructure } from "@/app/types"
 
 // Sample chapter data
 const demoChapters = [
@@ -47,6 +51,24 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const [chapters] = useState(demoChapters)
   const [activeChapterId, setActiveChapterId] = useState<string>("1")
   const [showChapterSidebar, setShowChapterSidebar] = useState<boolean>(true)
+  const [characters, setCharacters] = useState<Character[]>([])
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    mode: 'add' | 'edit' | 'delete';
+    character?: Character;
+  }>({
+    isOpen: false,
+    mode: 'add',
+  })
+  const [plots, setPlots] = useState<PlotStructure[]>([])
+  const [plotModalState, setPlotModalState] = useState<{
+    isOpen: boolean;
+    mode: 'add' | 'edit' | 'delete';
+    plot?: PlotStructure;
+  }>({
+    isOpen: false,
+    mode: 'add',
+  })
 
   const toggleChapterSidebar = () => {
     setShowChapterSidebar(!showChapterSidebar)
@@ -70,6 +92,70 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const handleSave = () => {
     // Implement save functionality
     alert("Content saved successfully")
+  }
+
+  const handleAddCharacter = () => {
+    setModalState({ isOpen: true, mode: 'add' })
+  }
+
+  const handleSaveCharacter = (character: Character) => {
+    if (modalState.mode === 'add') {
+      setCharacters([...characters, character])
+    } else if (modalState.mode === 'edit') {
+      setCharacters(characters.map(c => c.id === character.id ? character : c))
+    }
+    setModalState({ isOpen: false, mode: 'add' })
+  }
+
+  const handleCancelModal = () => {
+    setModalState({ isOpen: false, mode: 'add' })
+  }
+
+  const handleEditCharacter = (character: Character) => {
+    setModalState({ isOpen: true, mode: 'edit', character })
+  }
+
+  const handleDeleteCharacter = (character: Character) => {
+    setModalState({ isOpen: true, mode: 'delete', character })
+  }
+
+  const handleConfirmDelete = () => {
+    if (modalState.character) {
+      setCharacters(characters.filter(c => c.id !== modalState.character?.id))
+      setModalState({ isOpen: false, mode: 'add' })
+    }
+  }
+
+  const handleAddPlot = () => {
+    setPlotModalState({ isOpen: true, mode: 'add' })
+  }
+
+  const handleSavePlot = (plot: PlotStructure) => {
+    if (plotModalState.mode === 'add') {
+      setPlots([...plots, plot])
+    } else if (plotModalState.mode === 'edit') {
+      setPlots(plots.map(p => p.id === plot.id ? plot : p))
+    }
+    setPlotModalState({ isOpen: false, mode: 'add' })
+  }
+
+  const handleCancelPlotModal = () => {
+    setPlotModalState({ isOpen: false, mode: 'add' })
+  }
+
+  const handleEditPlot = (plot: PlotStructure) => {
+    setPlotModalState({ isOpen: true, mode: 'edit', plot })
+  }
+
+  const handleDeletePlot = (plot: PlotStructure) => {
+    setPlotModalState({ isOpen: true, mode: 'delete', plot })
+  }
+
+  const handleConfirmDeletePlot = () => {
+    if (plotModalState.plot) {
+      setPlots(plots.filter(p => p.id !== plotModalState.plot?.id))
+      setPlotModalState({ isOpen: false, mode: 'add' })
+    }
   }
 
   return (
@@ -278,7 +364,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           <div className="rounded-lg border p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">角色管理</h2>
-              <Button>
+              <Button onClick={handleAddCharacter}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
@@ -298,45 +384,24 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="border rounded-lg p-4 hover:border-primary transition-colors">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">林</span>
-                  <div>
-                    <h3 className="font-medium">林雨荷</h3>
-                    <p className="text-xs text-muted-foreground">主角</p>
+              {characters.map((character) => (
+                <div key={character.id} className="border rounded-lg p-4 hover:border-primary transition-colors">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                      {character.name.substring(0, 1)}
+                    </span>
+                    <div>
+                      <h3 className="font-medium">{character.name}</h3>
+                      <p className="text-xs text-muted-foreground">{character.role}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground line-clamp-3">{character.background}</p>
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => handleEditCharacter(character)}>编辑</Button>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteCharacter(character)}>删除</Button>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground line-clamp-3">年轻的设计师，具有创新思维和坚韧性格，来自普通家庭。</p>
-                <div className="mt-3 flex justify-end">
-                  <Button variant="ghost" size="sm">编辑</Button>
-                </div>
-              </div>
-              <div className="border rounded-lg p-4 hover:border-primary transition-colors">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">陈</span>
-                  <div>
-                    <h3 className="font-medium">陈明辉</h3>
-                    <p className="text-xs text-muted-foreground">主角</p>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground line-clamp-3">富商家族继承人，对传统文化有深厚兴趣，性格温和但有决断力。</p>
-                <div className="mt-3 flex justify-end">
-                  <Button variant="ghost" size="sm">编辑</Button>
-                </div>
-              </div>
-              <div className="border rounded-lg p-4 hover:border-primary transition-colors">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">周</span>
-                  <div>
-                    <h3 className="font-medium">周世豪</h3>
-                    <p className="text-xs text-muted-foreground">反派</p>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground line-clamp-3">陈家商业伙伴的儿子，对陈明辉和林雨荷的关系心生嫉妒。</p>
-                <div className="mt-3 flex justify-end">
-                  <Button variant="ghost" size="sm">编辑</Button>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         )}
@@ -344,7 +409,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           <div className="rounded-lg border p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">情节管理</h2>
-              <Button>
+              <Button onClick={handleAddPlot}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
@@ -364,48 +429,27 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               </Button>
             </div>
             <div className="space-y-4">
-              <div className="border rounded-md p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">初次相遇</h3>
-                  <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100 rounded-full px-2 py-0.5">开端</span>
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">林雨荷在江南小镇的古玩市场偶然遇见正在寻找古画线索的陈明辉，两人因共同的兴趣开始交谈。</p>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-muted-foreground">章节: 第一章</span>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm">编辑</Button>
-                    <Button variant="ghost" size="sm">展开</Button>
+              {plots.map((plot) => (
+                <div key={plot.id} className="border rounded-md p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold">{plot.title}</h3>
+                    <span className="text-xs rounded-full bg-muted px-2 py-0.5">{plot.type}</span>
+                  </div>
+                  <div className="space-y-1 mb-2">
+                    {plot.elements.map((el, i) => (
+                      <div key={el.id} className="flex gap-2 items-center">
+                        <span className="font-medium">{el.title}</span>
+                        <span className="text-xs text-muted-foreground">({el.status})</span>
+                        <span className="text-xs text-muted-foreground">{el.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => handleEditPlot(plot)}>编辑</Button>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeletePlot(plot)}>删除</Button>
                   </div>
                 </div>
-              </div>
-              <div className="border rounded-md p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">画卷之谜</h3>
-                  <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 rounded-full px-2 py-0.5">发展</span>
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">陈明辉展示祖传画卷，引起林雨荷的兴趣。两人开始研究画卷中隐藏的设计元素，互相欣赏对方的才华。</p>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-muted-foreground">章节: 第二章</span>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm">编辑</Button>
-                    <Button variant="ghost" size="sm">展开</Button>
-                  </div>
-                </div>
-              </div>
-              <div className="border rounded-md p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">家族干预</h3>
-                  <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 rounded-full px-2 py-0.5">冲突</span>
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">陈家得知陈明辉与普通设计师交往，认为有损家族声誉，周世豪趁机挑拨离间，导致两人关系紧张。</p>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-muted-foreground">章节: 第三章</span>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm">编辑</Button>
-                    <Button variant="ghost" size="sm">展开</Button>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         )}
@@ -495,6 +539,63 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           </div>
         )}
       </div>
+      {modalState.isOpen && (modalState.mode === 'add' || modalState.mode === 'edit') && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg max-h-[calc(100vh-32px)] overflow-y-auto">
+            <h2 className="mb-4 text-xl font-bold">
+              {modalState.mode === "add" ? "创建新角色" : "编辑角色"}
+            </h2>
+            <CharacterForm
+              character={modalState.character}
+              onSave={handleSaveCharacter}
+              onCancel={handleCancelModal}
+              existingCharacters={characters}
+            />
+          </div>
+        </div>
+      )}
+      {modalState.isOpen && modalState.mode === 'delete' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg">
+            <h2 className="mb-2 text-xl font-bold">删除角色</h2>
+            <p className="mb-4 text-muted-foreground">
+              确定要删除角色"{modalState.character?.name}"吗？此操作不可撤销。
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleCancelModal}>取消</Button>
+              <Button variant="destructive" onClick={handleConfirmDelete}>删除</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {plotModalState.isOpen && (plotModalState.mode === 'add' || plotModalState.mode === 'edit') && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg max-h-[calc(100vh-32px)] overflow-y-auto">
+            <h2 className="mb-4 text-xl font-bold">
+              {plotModalState.mode === "add" ? "创建新情节" : "编辑情节"}
+            </h2>
+            <PlotForm
+              plot={plotModalState.plot}
+              onSave={handleSavePlot}
+              onCancel={handleCancelPlotModal}
+            />
+          </div>
+        </div>
+      )}
+      {plotModalState.isOpen && plotModalState.mode === 'delete' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg">
+            <h2 className="mb-2 text-xl font-bold">删除情节</h2>
+            <p className="mb-4 text-muted-foreground">
+              确定要删除情节"{plotModalState.plot?.title}"吗？此操作不可撤销。
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleCancelPlotModal}>取消</Button>
+              <Button variant="destructive" onClick={handleConfirmDeletePlot}>删除</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
