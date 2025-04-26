@@ -146,29 +146,6 @@ export default function WorldsPage() {
                   Projects
                 </Link>
                 <Link
-                  href="/dashboard/characters"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                  Characters
-                </Link>
-                <Link
                   href="/dashboard/worlds"
                   className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-accent-foreground"
                 >
@@ -190,27 +167,7 @@ export default function WorldsPage() {
                   </svg>
                   Worlds
                 </Link>
-                <Link
-                  href="/dashboard/plots"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-                  </svg>
-                  Plots
-                </Link>
-                <Link
+                {/* <Link
                   href="/dashboard/analysis"
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
@@ -229,7 +186,7 @@ export default function WorldsPage() {
                     <path d="M2 11h7v9H2zm7-9h7v18H9zm7 3h7v6h-7z" />
                   </svg>
                   Analysis
-                </Link>
+                </Link> */}
               </nav>
             </div>
           </div>

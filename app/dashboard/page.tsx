@@ -161,13 +161,13 @@ export default function DashboardPage() {
                   <WorldIcon className="h-5 w-5" />
                   Worlds
                 </Link>
-                <Link
+                {/* <Link
                   href="/dashboard/analysis"
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
                   <AnalysisIcon className="h-5 w-5" />
                   Analysis
-                </Link>
+                </Link> */}
               </nav>
             </div>
           </div>
