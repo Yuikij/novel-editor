@@ -2,23 +2,25 @@
 
 import { useState } from "react"
 import { Button } from "@/app/components/ui/button"
-import type { NovelProject, NovelMetadata } from "@/app/types"
+import type { NovelProject, NovelMetadata, WorldBuilding } from "@/app/types"
 import AiTitleGenerator from "./ai-title-generator"
 
 interface NovelSettingsFormProps {
   project?: NovelProject
   onSave: (project: NovelProject) => void
   onCancel: () => void
+  worlds: WorldBuilding[]
 }
 
 export default function NovelSettingsForm({
   project,
   onSave,
-  onCancel
+  onCancel,
+  worlds
 }: NovelSettingsFormProps) {
   const isEditing = !!project
   
-  const [form, setForm] = useState<Omit<NovelProject, "id" | "createdAt" | "updatedAt">>({
+  const [form, setForm] = useState<Omit<NovelProject, "id" | "createdAt" | "updatedAt"> & { worldId?: string }>({
     title: project?.title || "",
     genre: project?.genre || "",
     style: project?.style || "",
@@ -31,7 +33,8 @@ export default function NovelSettingsForm({
       status: project?.metadata?.status || "draft",
       highlights: project?.metadata?.highlights || [],
       writingRequirements: project?.metadata?.writingRequirements || []
-    }
+    },
+    worldId: project?.worldId || (worlds[0]?.id ?? "")
   })
   
   const [tagInput, setTagInput] = useState("")
@@ -257,7 +260,8 @@ export default function NovelSettingsForm({
       createdAt: project?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ...form,
-      metadata: enhancedMetadata
+      metadata: enhancedMetadata,
+      worldId: form.worldId || undefined
     })
   }
 
@@ -574,6 +578,22 @@ export default function NovelSettingsForm({
             <option value="in-progress">进行中</option>
             <option value="completed">已完成</option>
             <option value="published">已发布</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="worldId" className="block text-sm font-medium">世界观</label>
+          <select
+            id="worldId"
+            name="worldId"
+            value={form.worldId || ""}
+            onChange={handleFormChange}
+            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="">无</option>
+            {worlds.map((world) => (
+              <option key={world.id} value={world.id}>{world.name}</option>
+            ))}
           </select>
         </div>
       </div>

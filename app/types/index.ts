@@ -8,6 +8,7 @@ export interface NovelProject {
   updatedAt: string
   coverGradient: string[]
   metadata: NovelMetadata
+  worldId?: string
 }
 
 export interface NovelMetadata {

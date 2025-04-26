@@ -16,7 +16,7 @@ import DashboardHeader from "@/app/components/layout/dashboard-header"
 import ProjectList from "@/app/components/novel-editor/project-list"
 import { Button } from "@/app/components/ui/button"
 import NovelSettingsForm from "@/app/components/novel-editor/novel-settings-form"
-import type { NovelProject } from "@/app/types"
+import type { NovelProject, WorldBuilding } from "@/app/types"
 
 const initialProjects: NovelProject[] = [
   {
@@ -73,10 +73,28 @@ const initialProjects: NovelProject[] = [
   }
 ]
 
+const initialWorlds: WorldBuilding[] = [
+  {
+    id: "1",
+    name: "江南水乡",
+    description: "位于中国东南部的传统水乡，有着悠久的历史和独特的文化风貌。",
+    elements: [],
+    notes: ""
+  },
+  {
+    id: "2",
+    name: "现代都市",
+    description: "繁华的现代大都市，科技与传统并存，是故事冲突与成长的重要场景。",
+    elements: [],
+    notes: ""
+  }
+]
+
 export default function DashboardPage() {
   const [projects, setProjects] = useState<NovelProject[]>(initialProjects)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<NovelProject | undefined>(undefined)
+  const [worlds, setWorlds] = useState<WorldBuilding[]>(initialWorlds)
 
   const handleOpenCreateModal = () => {
     setEditingProject(undefined)
@@ -215,6 +233,7 @@ export default function DashboardPage() {
               project={editingProject}
               onSave={handleSaveProject}
               onCancel={handleCloseModal}
+              worlds={worlds}
             />
           </div>
         </div>

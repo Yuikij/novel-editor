@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { formatDate } from '@/app/lib/utils';
 import { FaPlus } from 'react-icons/fa';
 import { Button } from "@/app/components/ui/button";
 import type { NovelProject } from '@/app/types';
@@ -15,6 +14,8 @@ interface ProjectListProps {
 }
 
 export default function ProjectList({ projects, onEdit, onDelete, onCreateNew }: ProjectListProps) {
+  const formatDate = (date: string) =>
+    new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(date));
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -28,8 +29,8 @@ export default function ProjectList({ projects, onEdit, onDelete, onCreateNew }:
                 </p>
               )}
               <div className="mt-4 text-sm text-muted-foreground">
-                <p>创建于: {new Date(project.createdAt).toLocaleDateString()}</p>
-                <p>更新于: {new Date(project.updatedAt).toLocaleDateString()}</p>
+                <p>创建于: {formatDate(project.createdAt)}</p>
+                <p>更新于: {formatDate(project.updatedAt)}</p>
               </div>
             </Link>
             <div className="flex justify-end gap-2 mt-4">
