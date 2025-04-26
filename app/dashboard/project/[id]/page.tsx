@@ -14,6 +14,7 @@ import type { Character } from "@/app/types"
 import PlotForm from "@/app/components/novel-editor/plot-form"
 import type { PlotElement, Chapter } from "@/app/types"
 import ChapterForm from "@/app/components/novel-editor/chapter-form"
+import OutlineForm, { OutlineNode } from "@/app/components/novel-editor/outline-form"
 
 // Sample chapter data
 const demoChapters = [
@@ -90,8 +91,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     isOpen: false,
     mode: 'add',
   })
-  const [outlines, setOutlines] = useState<PlotElement[]>([])
-  const [outlineModalState, setOutlineModalState] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; outline?: PlotElement }>({
+  const [outlines, setOutlines] = useState<OutlineNode[]>([])
+  const [outlineModalState, setOutlineModalState] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; outline?: OutlineNode }>({
     isOpen: false,
     mode: 'add',
   })
@@ -100,6 +101,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     mode: 'add',
   })
   const [deleteChapterState, setDeleteChapterState] = useState<{ isOpen: boolean; chapter?: Chapter }>({ isOpen: false })
+  const [deleteOutlineState, setDeleteOutlineState] = useState<{ isOpen: boolean; outline?: OutlineNode }>({ isOpen: false })
 
   const toggleChapterSidebar = () => {
     setShowChapterSidebar(!showChapterSidebar)
@@ -193,7 +195,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setOutlineModalState({ isOpen: true, mode: 'add' })
   }
 
-  const handleSaveOutline = (outline: PlotElement) => {
+  const handleEditOutline = (outline: OutlineNode) => {
+    setOutlineModalState({ isOpen: true, mode: 'edit', outline })
+  }
+
+  const handleSaveOutline = (outline: OutlineNode) => {
     if (outlineModalState.mode === 'add') {
       setOutlines([...outlines, outline])
     } else if (outlineModalState.mode === 'edit') {
@@ -204,6 +210,34 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
 
   const handleCancelOutlineModal = () => {
     setOutlineModalState({ isOpen: false, mode: 'add' })
+  }
+
+  const handleDeleteOutline = (outline: OutlineNode) => {
+    setDeleteOutlineState({ isOpen: true, outline })
+  }
+
+  const handleConfirmDeleteOutline = () => {
+    if (deleteOutlineState.outline) {
+      setOutlines(outlines.filter(o => o.id !== deleteOutlineState.outline?.id))
+      setDeleteOutlineState({ isOpen: false })
+    }
+  }
+
+  const handleCancelDeleteOutline = () => {
+    setDeleteOutlineState({ isOpen: false })
+  }
+
+  const handleMoveOutline = (outlineId: string, direction: 'up' | 'down') => {
+    const idx = outlines.findIndex(o => o.id === outlineId)
+    if (idx === -1) return
+    let newOutlines = [...outlines]
+    if (direction === 'up' && idx > 0) {
+      [newOutlines[idx - 1], newOutlines[idx]] = [newOutlines[idx], newOutlines[idx - 1]]
+    } else if (direction === 'down' && idx < newOutlines.length - 1) {
+      [newOutlines[idx], newOutlines[idx + 1]] = [newOutlines[idx + 1], newOutlines[idx]]
+    }
+    newOutlines = newOutlines.map((o, i) => ({ ...o, order: i + 1 }))
+    setOutlines(newOutlines)
   }
 
   const handleAddChapter = () => {
@@ -576,65 +610,25 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                 添加情节点
               </Button>
             </div>
-            <div className="space-y-6">
-              <div className="border rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-2">故事总览</h3>
-                <textarea 
-                  className="w-full h-32 border rounded-md p-2 text-sm resize-none" 
-                  placeholder="输入故事总体概要..."
-                  defaultValue="这是一个发生在江南水乡的纯爱故事。天才设计师林雨荷与富商之子陈明辉在一次偶然相遇中结缘，但两人之间的爱情面临家族与阶级的阻挠。故事将围绕两人如何克服身份差距，实现爱情与梦想展开。"
-                ></textarea>
-              </div>
-              <div className="border rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-2">情节发展</h3>
-                <div className="space-y-3">
-                  <div className="flex gap-3 items-start border-l-4 border-blue-400 pl-3 py-1">
-                    <div className="w-24 shrink-0">
-                      <span className="text-sm font-medium">起始</span>
+            <div className="space-y-3">
+              {outlines.sort((a, b) => a.order - b.order).map((outline, idx) => (
+                <div key={outline.id} className="flex items-center justify-between p-3 rounded-md border">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">{outline.title}</h3>
+                      <span className="text-xs rounded-full bg-muted px-2 py-0.5">{outline.type}</span>
                     </div>
-                    <div>
-                      <h4 className="font-medium">初次相遇</h4>
-                      <p className="text-sm text-muted-foreground">林雨荷在江南小镇遇见陈明辉，被其手中古画吸引</p>
-                    </div>
+                    <p className="text-sm text-muted-foreground">{outline.description}</p>
                   </div>
-                  <div className="flex gap-3 items-start border-l-4 border-green-400 pl-3 py-1">
-                    <div className="w-24 shrink-0">
-                      <span className="text-sm font-medium">发展</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">情感萌芽</h4>
-                      <p className="text-sm text-muted-foreground">陈明辉发现林雨荷的设计天赋，两人共同研究古画中的图案</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3 items-start border-l-4 border-amber-400 pl-3 py-1">
-                    <div className="w-24 shrink-0">
-                      <span className="text-sm font-medium">冲突</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">家族阻挠</h4>
-                      <p className="text-sm text-muted-foreground">陈家得知陈明辉与平民女子交往，百般阻挠，周世豪出场</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3 items-start border-l-4 border-purple-400 pl-3 py-1">
-                    <div className="w-24 shrink-0">
-                      <span className="text-sm font-medium">高潮</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">设计比赛</h4>
-                      <p className="text-sm text-muted-foreground">林雨荷参加全国设计大赛，遭周世豪暗中破坏，但依靠实力获胜</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3 items-start border-l-4 border-red-400 pl-3 py-1">
-                    <div className="w-24 shrink-0">
-                      <span className="text-sm font-medium">解决</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">身世之谜</h4>
-                      <p className="text-sm text-muted-foreground">林雨荷身世之谜揭晓，与陈家有渊源，两人重获自由</p>
-                    </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => handleMoveOutline(outline.id, 'up')} disabled={idx === 0}>上移</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleMoveOutline(outline.id, 'down')} disabled={idx === outlines.length - 1}>下移</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleEditOutline(outline)}>编辑</Button>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteOutline(outline)}>删除</Button>
                   </div>
                 </div>
-              </div>
+              ))}
+              {outlines.length === 0 && <p className="text-sm text-muted-foreground">暂无情节点</p>}
             </div>
           </div>
         )}
@@ -703,11 +697,10 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
             <h2 className="mb-4 text-xl font-bold">
               {outlineModalState.mode === "add" ? "创建新情节点" : "编辑情节点"}
             </h2>
-            <PlotForm
-              plot={outlineModalState.outline}
+            <OutlineForm
+              outline={outlineModalState.outline}
               onSave={handleSaveOutline}
               onCancel={handleCancelOutlineModal}
-              chapters={chapters}
             />
           </div>
         </div>
@@ -736,6 +729,20 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={handleCancelDeleteChapter}>取消</Button>
               <Button variant="destructive" onClick={handleConfirmDeleteChapter}>删除</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteOutlineState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg">
+            <h2 className="mb-2 text-xl font-bold">删除情节点</h2>
+            <p className="mb-4 text-muted-foreground">
+              确定要删除情节点"{deleteOutlineState.outline?.title}"吗？此操作不可撤销。
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleCancelDeleteOutline}>取消</Button>
+              <Button variant="destructive" onClick={handleConfirmDeleteOutline}>删除</Button>
             </div>
           </div>
         </div>
