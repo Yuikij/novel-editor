@@ -104,9 +104,9 @@ export default function DashboardPage() {
     handleCloseModal()
   }
 
-  const handleDeleteProject = (projectId: string) => {
+  const handleDeleteProject = (project: NovelProject) => {
     if (confirm("确定要删除这个项目吗？此操作不可恢复。")) {
-      setProjects(projects.filter(p => p.id !== projectId))
+      setProjects(projects.filter(p => p.id !== project.id))
     }
   }
 
@@ -195,7 +195,12 @@ export default function DashboardPage() {
             </Button>
           </div>
           <div className="mt-6">
-            <ProjectList onCreateNew={handleOpenCreateModal} />
+            <ProjectList
+              projects={projects}
+              onEdit={handleOpenEditModal}
+              onDelete={handleDeleteProject}
+              onCreateNew={handleOpenCreateModal}
+            />
           </div>
         </main>
       </div>
