@@ -91,69 +91,6 @@ const initialWorlds: WorldBuilding[] = [
 ]
 
 export default function DashboardPage() {
-  const [projects, setProjects] = useState<NovelProject[]>(initialProjects)
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [editingProject, setEditingProject] = useState<NovelProject | undefined>(undefined)
-  const [worlds, setWorlds] = useState<WorldBuilding[]>(initialWorlds)
-
-  const handleOpenCreateModal = () => {
-    setEditingProject(undefined)
-    setIsCreateModalOpen(true)
-  }
-
-  const handleOpenEditModal = (project: NovelProject) => {
-    setEditingProject(project)
-    setIsCreateModalOpen(true)
-  }
-
-  const handleCloseModal = () => {
-    setIsCreateModalOpen(false)
-    setEditingProject(undefined)
-  }
-
-  const handleSaveProject = (project: NovelProject) => {
-    if (editingProject) {
-      // Edit existing project
-      setProjects(projects.map(p => p.id === project.id ? project : p))
-    } else {
-      // Add new project
-      setProjects([...projects, project])
-    }
-    handleCloseModal()
-  }
-
-  const handleDeleteProject = (project: NovelProject) => {
-    if (confirm("确定要删除这个项目吗？此操作不可恢复。")) {
-      setProjects(projects.filter(p => p.id !== project.id))
-    }
-  }
-
-  // Helper function to format date
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(date)
-  }
-
-  // Helper function to get status text and color
-  const getStatusInfo = (status: string) => {
-    switch (status) {
-      case "draft":
-        return { text: "草稿", class: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100" }
-      case "in-progress":
-        return { text: "进行中", class: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100" }
-      case "completed":
-        return { text: "已完成", class: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" }
-      case "published":
-        return { text: "已发布", class: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100" }
-      default:
-        return { text: "未知", class: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100" }
-    }
-  }
-
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader />
@@ -191,53 +128,9 @@ export default function DashboardPage() {
           </div>
         </aside>
         <main className="w-full">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-            <Button className="flex items-center gap-2" onClick={handleOpenCreateModal}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4"
-              >
-                <path d="M12 5v14" />
-                <path d="M5 12h14" />
-              </svg>
-              New Project
-            </Button>
-          </div>
-          <div className="mt-6">
-            <ProjectList
-              projects={projects}
-              onEdit={handleOpenEditModal}
-              onDelete={handleDeleteProject}
-              onCreateNew={handleOpenCreateModal}
-            />
-          </div>
+          <ProjectList />
         </main>
       </div>
-
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg max-h-[calc(100vh-32px)] overflow-y-auto">
-            <h2 className="mb-4 text-xl font-bold">
-              {editingProject ? "编辑项目" : "创建新项目"}
-            </h2>
-            <NovelSettingsForm
-              project={editingProject}
-              onSave={handleSaveProject}
-              onCancel={handleCloseModal}
-              worlds={worlds}
-            />
-          </div>
-        </div>
-      )}
     </div>
   )
 } 

@@ -2,7 +2,7 @@
 
 export const runtime = 'edge';
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import DashboardHeader from "@/app/components/layout/dashboard-header"
 import { Button } from "@/app/components/ui/button"
@@ -15,62 +15,11 @@ import PlotForm from "@/app/components/novel-editor/plot-form"
 import type { PlotElement, Chapter } from "@/app/types"
 import ChapterForm from "@/app/components/novel-editor/chapter-form"
 import OutlineForm, { OutlineNode } from "@/app/components/novel-editor/outline-form"
-
-// Sample chapter data
-const demoChapters = [
-  {
-    id: "1",
-    title: "江南烟雨",
-    wordCount: 789,
-    status: "completed" as const,
-    summary: "主角林雨荷在江南小镇上与陈明辉初次相遇。",
-    content: "",
-    order: 1,
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-01T00:00:00Z",
-    notes: ""
-  },
-  {
-    id: "2",
-    title: "画卷之谜",
-    wordCount: 1250,
-    status: "completed" as const,
-    summary: "陈明辉展示祖传画卷，引起林雨荷的兴趣。",
-    content: "",
-    order: 2,
-    createdAt: "2024-01-02T00:00:00Z",
-    updatedAt: "2024-01-02T00:00:00Z",
-    notes: ""
-  },
-  {
-    id: "3",
-    title: "家族阻挠",
-    wordCount: 980,
-    status: "in-progress" as const,
-    summary: "陈家反对陈明辉与平民交往，周世豪登场。",
-    content: "",
-    order: 3,
-    createdAt: "2024-01-03T00:00:00Z",
-    updatedAt: "2024-01-03T00:00:00Z",
-    notes: ""
-  },
-  {
-    id: "4",
-    title: "设计比赛",
-    wordCount: 324,
-    status: "draft" as const,
-    summary: "林雨荷参加设计比赛，遭遇对手刁难。",
-    content: "",
-    order: 4,
-    createdAt: "2024-01-04T00:00:00Z",
-    updatedAt: "2024-01-04T00:00:00Z",
-    notes: ""
-  }
-]
+import { fetchProject, Project } from "@/app/lib/api/project"
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState<string>("write")
-  const [chapters, setChapters] = useState<Chapter[]>(demoChapters)
+  const [chapters, setChapters] = useState<Chapter[]>([])
   const [activeChapterId, setActiveChapterId] = useState<string>("1")
   const [showChapterSidebar, setShowChapterSidebar] = useState<boolean>(true)
   const [characters, setCharacters] = useState<Character[]>([])
@@ -102,6 +51,17 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   })
   const [deleteChapterState, setDeleteChapterState] = useState<{ isOpen: boolean; chapter?: Chapter }>({ isOpen: false })
   const [deleteOutlineState, setDeleteOutlineState] = useState<{ isOpen: boolean; outline?: OutlineNode }>({ isOpen: false })
+  const [project, setProject] = useState<Project | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasError, setHasError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setIsLoading(true)
+    fetchProject(params.id)
+      .then(setProject)
+      .catch(err => setHasError(err.message || '加载失败'))
+      .finally(() => setIsLoading(false))
+  }, [params.id])
 
   const toggleChapterSidebar = () => {
     setShowChapterSidebar(!showChapterSidebar)
@@ -290,6 +250,10 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setChapters(newChapters)
   }
 
+  if (isLoading) return <div className="p-8 text-center">加载中...</div>
+  if (hasError) return <div className="p-8 text-center text-red-500">{hasError}</div>
+  if (!project) return null
+
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader />
@@ -315,7 +279,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               返回
             </Link>
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight">江南纯爱小说</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{project.title}</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleAnalysisClick}>

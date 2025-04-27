@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/app/components/ui/button"
 import type { NovelProject, NovelMetadata, WorldBuilding } from "@/app/types"
 import AiTitleGenerator from "./ai-title-generator"
+import { createProject, updateProject, Project } from '@/app/lib/api/project'
 
 interface NovelSettingsFormProps {
   project?: NovelProject
@@ -47,6 +48,9 @@ export default function NovelSettingsForm({
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+
+  const [submitLoading, setSubmitLoading] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -242,27 +246,60 @@ export default function NovelSettingsForm({
     }, 1000)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Add the custom fields to metadata
-    const enhancedMetadata: NovelMetadata & { 
-      highlights?: string[],
-      writingRequirements?: string[] 
-    } = {
-      ...form.metadata,
-      highlights,
-      writingRequirements
+    setSubmitLoading(true)
+    setSubmitError(null)
+    try {
+      // 构造API Project类型
+      const apiProject: Partial<Project> = {
+        id: project?.id,
+        title: form.title,
+        genre: form.genre,
+        style: form.style,
+        synopsis: form.metadata.synopsis,
+        tags: form.metadata.tags,
+        targetAudience: form.metadata.targetAudience,
+        wordCountGoal: form.metadata.wordCountGoal,
+        highlights,
+        writingRequirements,
+        status: form.metadata.status,
+        worldId: form.worldId,
+        createdAt: project?.createdAt,
+        updatedAt: project?.updatedAt,
+      }
+      let saved: Project
+      if (project?.id) {
+        saved = await updateProject(project.id, apiProject as Project)
+      } else {
+        saved = await createProject(apiProject as Project)
+      }
+      // 转换为 NovelProject 类型
+      const novelProject = {
+        id: saved.id,
+        title: saved.title,
+        genre: saved.genre || '',
+        style: saved.style,
+        createdAt: saved.createdAt || new Date().toISOString(),
+        updatedAt: saved.updatedAt || new Date().toISOString(),
+        coverGradient: project?.coverGradient || ["#4f46e5", "#818cf8"],
+        metadata: {
+          synopsis: saved.synopsis,
+          tags: saved.tags,
+          targetAudience: saved.targetAudience,
+          wordCountGoal: saved.wordCountGoal,
+          status: saved.status as any,
+          highlights: saved.highlights,
+          writingRequirements: saved.writingRequirements,
+        },
+        worldId: saved.worldId,
+      }
+      onSave(novelProject)
+    } catch (err: any) {
+      setSubmitError(err.message || '保存失败')
+    } finally {
+      setSubmitLoading(false)
     }
-    
-    onSave({
-      id: project?.id || `project-${Date.now()}`,
-      createdAt: project?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      ...form,
-      metadata: enhancedMetadata,
-      worldId: form.worldId || undefined
-    })
   }
 
   const genreOptions = [
@@ -598,16 +635,10 @@ export default function NovelSettingsForm({
         </div>
       </div>
 
+      {submitError && <div className="text-red-500 text-sm">{submitError}</div>}
       <div className="flex justify-end gap-2">
-        <Button 
-          type="button" 
-          onClick={onCancel}
-        >
-          取消
-        </Button>
-        <Button type="submit">
-          {isEditing ? "保存设置" : "创建项目"}
-        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>取消</Button>
+        <Button type="submit" disabled={submitLoading}>{submitLoading ? '保存中...' : isEditing ? '保存修改' : '创建项目'}</Button>
       </div>
     </form>
   )
