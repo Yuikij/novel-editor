@@ -9,6 +9,7 @@ interface Chapter {
   wordCount: number
   status: ChapterStatus
   summary: string
+  targetWordCount?: number
 }
 
 interface ChapterSidebarProps {
@@ -92,6 +93,11 @@ export default function ChapterSidebar({
                       <span className="text-xs text-muted-foreground">
                         {chapter.wordCount} 字
                       </span>
+                      {chapter.targetWordCount && (
+                        <span className="text-xs text-muted-foreground">
+                          / 目标字数：{chapter.targetWordCount}
+                        </span>
+                      )}
                       <span className={`text-xs rounded-full px-1.5 py-0.5 font-medium ${
                         chapter.status === "completed" 
                           ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" 

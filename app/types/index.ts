@@ -69,6 +69,7 @@ export interface Chapter {
   createdAt: string
   updatedAt: string
   wordCount: number
+  targetWordCount?: number
   notes?: string
 }
 

@@ -20,6 +20,7 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
     createdAt: chapter?.createdAt || new Date().toISOString(),
     updatedAt: chapter?.updatedAt || new Date().toISOString(),
     wordCount: chapter?.wordCount || 0,
+    targetWordCount: chapter?.targetWordCount || undefined,
     notes: chapter?.notes || ""
   })
 
@@ -94,17 +95,32 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
             />
           </div>
         </div>
-        <div>
-          <label htmlFor="notes" className="block text-sm font-medium">备注</label>
-          <textarea
-            id="notes"
-            name="notes"
-            rows={2}
-            value={form.notes}
-            onChange={handleFormChange}
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="章节备注..."
-          />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="targetWordCount" className="block text-sm font-medium">目标字数</label>
+            <input
+              id="targetWordCount"
+              name="targetWordCount"
+              type="number"
+              min="0"
+              value={form.targetWordCount ?? ""}
+              onChange={handleFormChange}
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              placeholder="章节目标字数"
+            />
+          </div>
+          <div>
+            <label htmlFor="notes" className="block text-sm font-medium">备注</label>
+            <textarea
+              id="notes"
+              name="notes"
+              rows={2}
+              value={form.notes}
+              onChange={handleFormChange}
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              placeholder="章节备注..."
+            />
+          </div>
         </div>
       </div>
       <div className="flex justify-end gap-2">
