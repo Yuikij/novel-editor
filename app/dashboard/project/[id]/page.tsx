@@ -19,6 +19,7 @@ import { fetchProject, Project } from "@/app/lib/api/project"
 import { fetchChaptersPage, createChapter, updateChapter, deleteChapter } from '@/app/lib/api/chapter'
 import { fetchCharactersByProject, createCharacter, updateCharacter, deleteCharacter as deleteCharacterApi } from '@/app/lib/api/character'
 import { deletePlot, fetchPlotsPage, createPlot, updatePlot } from '@/app/lib/api/plot'
+import { fetchOutlinePlotPointsPage, createOutlinePlotPoint, updateOutlinePlotPoint, deleteOutlinePlotPoint } from '@/app/lib/api/outline-plot-point'
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState<string>("write")
@@ -48,6 +49,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     mode: 'add',
   })
   const [outlines, setOutlines] = useState<OutlineNode[]>([])
+  const [isOutlinesLoading, setIsOutlinesLoading] = useState(false)
+  const [outlinesError, setOutlinesError] = useState<string | null>(null)
   const [outlineModalState, setOutlineModalState] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; outline?: OutlineNode }>({
     isOpen: false,
     mode: 'add',
@@ -240,6 +243,56 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     }
   }
 
+  const fetchOutlines = async () => {
+    setIsOutlinesLoading(true)
+    setOutlinesError(null)
+    try {
+      const res = await fetchOutlinePlotPointsPage({ projectId: params.id, page: 1, pageSize: 100 })
+      setOutlines(res.data.records)
+    } catch (err: any) {
+      setOutlinesError(err.message || '大纲加载失败')
+    } finally {
+      setIsOutlinesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchOutlines()
+  }, [params.id])
+
+  const handleSaveOutline = async (outline: OutlineNode) => {
+    setIsOutlinesLoading(true)
+    setOutlinesError(null)
+    try {
+      if (outlineModalState.mode === 'add') {
+        await createOutlinePlotPoint({ ...outline, projectId: params.id })
+      } else if (outlineModalState.mode === 'edit' && outline.id) {
+        await updateOutlinePlotPoint(outline.id, { ...outline, projectId: params.id })
+      }
+      await fetchOutlines()
+      setOutlineModalState({ isOpen: false, mode: 'add' })
+    } catch (err: any) {
+      setOutlinesError(err.message || '保存大纲失败')
+    } finally {
+      setIsOutlinesLoading(false)
+    }
+  }
+
+  const handleConfirmDeleteOutline = async () => {
+    if (!deleteOutlineState.outline) return
+    setIsOutlinesLoading(true)
+    setOutlinesError(null)
+    try {
+      await deleteOutlinePlotPoint(deleteOutlineState.outline.id)
+      await fetchOutlines()
+      setDeleteOutlineState({ isOpen: false })
+    } catch (err: any) {
+      setOutlinesError(err.message || '删除大纲失败')
+    } finally {
+      setIsOutlinesLoading(false)
+    }
+  }
+
   const handleAddOutline = () => {
     setOutlineModalState({ isOpen: true, mode: 'add' })
   }
@@ -248,28 +301,12 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setOutlineModalState({ isOpen: true, mode: 'edit', outline })
   }
 
-  const handleSaveOutline = (outline: OutlineNode) => {
-    if (outlineModalState.mode === 'add') {
-      setOutlines([...outlines, outline])
-    } else if (outlineModalState.mode === 'edit') {
-      setOutlines(outlines.map(o => o.id === outline.id ? outline : o))
-    }
-    setOutlineModalState({ isOpen: false, mode: 'add' })
-  }
-
   const handleCancelOutlineModal = () => {
     setOutlineModalState({ isOpen: false, mode: 'add' })
   }
 
   const handleDeleteOutline = (outline: OutlineNode) => {
     setDeleteOutlineState({ isOpen: true, outline })
-  }
-
-  const handleConfirmDeleteOutline = () => {
-    if (deleteOutlineState.outline) {
-      setOutlines(outlines.filter(o => o.id !== deleteOutlineState.outline?.id))
-      setDeleteOutlineState({ isOpen: false })
-    }
   }
 
   const handleCancelDeleteOutline = () => {
@@ -763,6 +800,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               ))}
               {outlines.length === 0 && <p className="text-sm text-muted-foreground">暂无情节点</p>}
             </div>
+            {isOutlinesLoading && <div className="p-8 text-center">加载中...</div>}
+            {outlinesError && <div className="p-8 text-center text-red-500">{outlinesError}</div>}
           </div>
         )}
       </div>

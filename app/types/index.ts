@@ -38,9 +38,16 @@ export interface Character {
 }
 
 export interface CharacterRelationship {
-  characterId: string
-  type: 'friend' | 'enemy' | 'love' | 'family' | 'rival' | 'mentor' | 'other'
+  id: string
+  projectId: string
+  sourceCharacterId: string
+  targetCharacterId: string
+  characterId: string | null
+  type: string | null
+  relationshipType: 'friend' | 'enemy' | 'love' | 'family' | 'rival' | 'mentor' | 'other' | null
   description: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 // World Building Types

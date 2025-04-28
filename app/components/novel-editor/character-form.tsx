@@ -9,13 +9,15 @@ interface CharacterFormProps {
   onSave: (character: Character) => void
   onCancel: () => void
   existingCharacters?: Character[]
+  projectId: string
 }
 
 export default function CharacterForm({
   character,
   onSave,
   onCancel,
-  existingCharacters = []
+  existingCharacters = [],
+  projectId
 }: CharacterFormProps) {
   const isEditing = !!character
   
@@ -39,9 +41,15 @@ export default function CharacterForm({
   const [relationships, setRelationships] = useState<CharacterRelationship[]>(
     character?.relationships || []
   )
-  const [relationshipForm, setRelationshipForm] = useState({
-    characterId: "",
-    type: "friend" as CharacterRelationship["type"],
+  const characterIdForRelationship = character?.id || `temp-${Date.now()}`
+  const projectIdForRelationship = projectId
+  const [relationshipForm, setRelationshipForm] = useState<{
+    targetCharacterId: string
+    relationshipType: Exclude<CharacterRelationship["relationshipType"], null>
+    description: string
+  }>({
+    targetCharacterId: "",
+    relationshipType: "friend",
     description: ""
   })
 
@@ -85,13 +93,23 @@ export default function CharacterForm({
   }
 
   const addRelationship = () => {
-    if (!relationshipForm.characterId || !relationshipForm.description) return
-    setRelationships([...relationships, { ...relationshipForm }])
-    setRelationshipForm({
-      characterId: "",
-      type: "friend",
-      description: ""
-    })
+    if (!relationshipForm.targetCharacterId || !relationshipForm.relationshipType || !characterIdForRelationship) return
+    setRelationships([
+      ...relationships,
+      {
+        id: crypto.randomUUID ? crypto.randomUUID() : `rel-${Date.now()}`,
+        projectId: projectIdForRelationship,
+        sourceCharacterId: characterIdForRelationship,
+        targetCharacterId: relationshipForm.targetCharacterId,
+        characterId: null,
+        type: null,
+        relationshipType: relationshipForm.relationshipType,
+        description: relationshipForm.description,
+        createdAt: undefined,
+        updatedAt: undefined
+      }
+    ])
+    setRelationshipForm({ targetCharacterId: "", relationshipType: "friend", description: "" })
   }
 
   const removeRelationship = (index: number) => {
@@ -265,13 +283,13 @@ export default function CharacterForm({
             <div className="mt-1 space-y-2 rounded-md border border-border p-3">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <div>
-                  <label htmlFor="characterId" className="block text-xs text-muted-foreground">
+                  <label htmlFor="targetCharacterId" className="block text-xs text-muted-foreground">
                     相关角色
                   </label>
                   <select
-                    id="characterId"
-                    value={relationshipForm.characterId}
-                    onChange={(e) => setRelationshipForm({ ...relationshipForm, characterId: e.target.value })}
+                    id="targetCharacterId"
+                    value={relationshipForm.targetCharacterId}
+                    onChange={(e) => setRelationshipForm({ ...relationshipForm, targetCharacterId: e.target.value })}
                     className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
                   >
                     <option value="">选择角色</option>
@@ -288,8 +306,8 @@ export default function CharacterForm({
                   </label>
                   <select
                     id="relationshipType"
-                    value={relationshipForm.type}
-                    onChange={(e) => setRelationshipForm({ ...relationshipForm, type: e.target.value as CharacterRelationship["type"] })}
+                    value={relationshipForm.relationshipType}
+                    onChange={(e) => setRelationshipForm({ ...relationshipForm, relationshipType: e.target.value as Exclude<CharacterRelationship["relationshipType"], null> })}
                     className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
                   >
                     <option value="friend">友人</option>
@@ -322,14 +340,14 @@ export default function CharacterForm({
 
               <div className="mt-2 space-y-2">
                 {relationships.map((relationship, index) => {
-                  const relatedChar = existingCharacters.find(c => c.id === relationship.characterId)
+                  const relatedChar = existingCharacters.find(c => c.id === relationship.targetCharacterId)
                   return (
-                    <div key={index} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
+                    <div key={relationship.id} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
                       <div className="flex flex-col">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{relatedChar?.name || relationship.characterId}</span>
+                          <span className="font-medium">{relatedChar?.name || relationship.targetCharacterId}</span>
                           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
-                            {relationship.type}
+                            {relationship.relationshipType}
                           </span>
                         </div>
                         <span className="text-sm text-muted-foreground">{relationship.description}</span>

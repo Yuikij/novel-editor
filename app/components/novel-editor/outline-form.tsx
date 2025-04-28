@@ -34,7 +34,12 @@ export default function OutlineForm({ outline, onSave, onCancel }: OutlineFormPr
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave(form)
+    if (isEditing && outline?.id) {
+      onSave({ ...form, id: outline.id })
+    } else {
+      const { id, ...rest } = form
+      onSave(rest as any)
+    }
   }
 
   return (
