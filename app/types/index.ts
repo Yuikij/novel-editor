@@ -32,6 +32,9 @@ export interface Character {
   imageUrl?: string
   relationships: CharacterRelationship[]
   notes?: string
+  age?: number
+  gender?: 'male' | 'female' | 'other'
+  description?: string
 }
 
 export interface CharacterRelationship {
@@ -64,7 +67,7 @@ export interface Chapter {
   title: string
   content: string
   summary?: string
-  order: number
+  sortOrder: number
   status: ChapterStatus
   createdAt: string
   updatedAt: string

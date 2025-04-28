@@ -2,12 +2,13 @@
 
 export const runtime = 'edge';
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import DashboardHeader from "@/app/components/layout/dashboard-header"
 import { Button } from "@/app/components/ui/button"
 import WorldForm from "@/app/components/novel-editor/world-form"
 import type { WorldBuilding, WorldElement } from "@/app/types"
+import { fetchWorldsPage, createWorld, updateWorld, deleteWorld, World } from '@/app/lib/api/world';
 
 const initialWorlds: WorldBuilding[] = [
   {
@@ -63,48 +64,82 @@ type ModalState = {
 }
 
 export default function WorldsPage() {
-  const [worlds, setWorlds] = useState<WorldBuilding[]>(initialWorlds)
+  const [worlds, setWorlds] = useState<World[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasError, setHasError] = useState<string | null>(null)
   const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,
     mode: "add"
   })
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+
+  const fetchList = () => {
+    setIsLoading(true)
+    fetchWorldsPage({ page: 1, pageSize: 50 })
+      .then(res => setWorlds(res.data.records))
+      .catch(err => setHasError(err.message || '加载失败'))
+      .finally(() => setIsLoading(false))
+  }
+
+  useEffect(() => {
+    fetchList()
+  }, [])
 
   const handleAddWorld = () => {
-    setModalState({
-      isOpen: true,
-      mode: "add"
-    })
+    setModalState({ isOpen: true, mode: "add" })
   }
 
-  const handleEditWorld = (world: WorldBuilding) => {
-    setModalState({
-      isOpen: true,
-      mode: "edit",
-      world
-    })
+  const handleEditWorld = (world: World) => {
+    setModalState({ isOpen: true, mode: "edit", world })
   }
 
-  const handleDeleteWorld = (world: WorldBuilding) => {
-    setModalState({
-      isOpen: true,
-      mode: "delete",
-      world
-    })
+  const handleDeleteWorld = (world: World) => {
+    setModalState({ isOpen: true, mode: "delete", world })
   }
 
-  const handleSaveWorld = (world: WorldBuilding) => {
-    if (modalState.mode === "add") {
-      setWorlds([...worlds, world])
-    } else if (modalState.mode === "edit") {
-      setWorlds(worlds.map(w => w.id === world.id ? world : w))
-    }
-    setModalState({ isOpen: false, mode: "add" })
-  }
-
-  const handleConfirmDelete = () => {
-    if (modalState.world) {
-      setWorlds(worlds.filter(w => w.id !== modalState.world?.id))
+  const handleSaveWorld = async (world: Partial<World>) => {
+    setIsLoading(true)
+    try {
+      if (modalState.mode === "add") {
+        const { id, ...rest } = world
+        const payload = {
+          ...rest,
+          elements: (world.elements ?? []) as WorldElement[]
+        } as Omit<World, 'id'>
+        await createWorld(payload)
+        setSuccessMsg('世界观创建成功')
+      } else if (modalState.mode === "edit" && world.id) {
+        const payload = {
+          ...world,
+          elements: (world.elements ?? []) as WorldElement[]
+        } as World
+        await updateWorld(world.id, payload)
+        setSuccessMsg('世界观更新成功')
+      }
       setModalState({ isOpen: false, mode: "add" })
+      fetchList()
+    } catch (err: any) {
+      setHasError(err.message || '保存失败')
+    } finally {
+      setIsLoading(false)
+      setTimeout(() => setSuccessMsg(null), 2000)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (modalState.world) {
+      setIsLoading(true)
+      try {
+        await deleteWorld(modalState.world.id)
+        setSuccessMsg('世界观删除成功')
+        setModalState({ isOpen: false, mode: "add" })
+        fetchList()
+      } catch (err: any) {
+        setHasError(err.message || '删除失败')
+      } finally {
+        setIsLoading(false)
+        setTimeout(() => setSuccessMsg(null), 2000)
+      }
     }
   }
 
@@ -196,7 +231,7 @@ export default function WorldsPage() {
             <h1 className="text-2xl font-bold tracking-tight">
               World Building
             </h1>
-            <Button className="flex items-center gap-2" onClick={handleAddWorld}>
+            <Button className="flex items-center gap-2" onClick={handleAddWorld} disabled={isLoading}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="16"
@@ -212,121 +247,23 @@ export default function WorldsPage() {
                 <path d="M12 5v14" />
                 <path d="M5 12h14" />
               </svg>
-              New World
+              新建世界观
             </Button>
           </div>
-
-          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {worlds.map((world) => (
-              <div
-                key={world.id}
-                className="flex flex-col rounded-lg border bg-card transition-all hover:shadow-md"
-              >
-                <div className="flex items-center justify-center rounded-t-lg bg-accent/30 p-6">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/20">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="32"
-                      height="32"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-primary"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-                      <path d="M2 12h20" />
-                    </svg>
-                  </div>
-                </div>
-                <div className="flex-1 p-4">
-                  <h3 className="text-xl font-semibold">{world.name}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {world.description}
-                  </p>
-                  <div className="mt-3">
-                    <h4 className="text-sm font-medium">Elements:</h4>
-                    <div className="mt-2 space-y-1">
-                      {world.elements.map((element) => (
-                        <div 
-                          key={element.id} 
-                          className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-1.5"
-                        >
-                          <span className={`h-2 w-2 rounded-full ${
-                            element.type === 'location' ? 'bg-blue-500' :
-                            element.type === 'culture' ? 'bg-purple-500' :
-                            element.type === 'magic' ? 'bg-amber-500' :
-                            element.type === 'technology' ? 'bg-green-500' :
-                            element.type === 'history' ? 'bg-red-500' : 'bg-gray-500'
-                          }`}></span>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-medium">{element.name}</span>
-                              <span className="rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
-                                {element.type}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground line-clamp-1">
-                              {element.description}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-end border-t p-4">
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => handleEditWorld(world)}
-                    >
-                      Edit
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="text-destructive hover:text-destructive/80" 
-                      onClick={() => handleDeleteWorld(world)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
+          {isLoading && <div className="p-8 text-center">加载中...</div>}
+          {hasError && <div className="p-8 text-center text-red-500">{hasError}</div>}
+          {successMsg && <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded shadow">{successMsg}</div>}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {worlds.map(world => (
+              <div key={world.id} className="border rounded-lg p-4 hover:border-primary transition-colors h-full flex flex-col">
+                <h3 className="text-xl font-medium">{world.name}</h3>
+                <p className="text-muted-foreground mt-2 line-clamp-3 flex-grow">{world.description || ''}</p>
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button variant="ghost" size="sm" onClick={() => handleEditWorld(world)}>编辑</Button>
+                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteWorld(world)}>删除</Button>
                 </div>
               </div>
             ))}
-
-            <div 
-              onClick={handleAddWorld}
-              className="flex min-h-[300px] flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center hover:border-primary/50 hover:bg-accent/10 transition-colors cursor-pointer"
-            >
-              <div className="mb-4 rounded-full bg-primary/10 p-3">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-6 w-6 text-primary"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-                  <path d="M2 12h20" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium">Create New World</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Define locations, cultures, and lore for your novel
-              </p>
-            </div>
           </div>
         </main>
       </div>

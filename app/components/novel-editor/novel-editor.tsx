@@ -1,8 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/app/components/ui/button"
-import { IconRobot, IconEdit, IconPlus } from "@tabler/icons-react"
+import { IconRobot, IconDeviceFloppy, IconEye, IconEdit } from "@tabler/icons-react"
+import { FaFont } from "react-icons/fa"
+import { fetchChapter, updateChapter } from "@/app/lib/api/chapter"
+import debounce from "lodash.debounce"
+import dynamic from "next/dynamic"
+import "@uiw/react-md-editor/markdown-editor.css"
+import "@uiw/react-markdown-preview/markdown.css"
+
+// 动态导入 MDEditor 以避免 SSR 问题
+const MDEditor = dynamic(
+  () => import("@uiw/react-md-editor").then((mod) => mod.default),
+  { ssr: false }
+)
+
+const MDPreview = dynamic(
+  () => import("@uiw/react-md-editor").then((mod) => mod.default.Markdown),
+  { ssr: false }
+)
 
 interface NovelEditorProps {
   projectId: string
@@ -10,74 +27,379 @@ interface NovelEditorProps {
 }
 
 export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) {
-  const [content, setContent] = useState<string>(
-    "江南村落，烟雨蒙蒙。\n\n一座青瓦小楼前，少女撑着油纸伞，轻声吟唱着不知名的小调。她眉眼如画，长发如瀑，一袭淡蓝色旗袍勾勒出窈窕的身姿。\n\n就在此时，一名身着西装的年轻男子从远处走来，他手中拿着一幅画卷，眼神中满是期待。"
-  )
-
+  const [content, setContent] = useState<string>("")
+  const [chapter, setChapter] = useState<any>(null)
   const [isAiPanelOpen, setIsAiPanelOpen] = useState<boolean>(false)
-  const [isAnalysisOpen, setIsAnalysisOpen] = useState<boolean>(false)
+  const [wordCount, setWordCount] = useState(0)
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<"edit" | "preview">("edit")
+  const editorRef = useRef<HTMLTextAreaElement | null>(null)
+  const [fontSize, setFontSize] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('novel-editor-font-size')
+      return saved ? Number(saved) : 16
+    }
+    return 16
+  })
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value)
+  // 加载章节内容
+  useEffect(() => {
+    if (!chapterId) return
+
+    const loadChapter = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const data = await fetchChapter(chapterId)
+        setChapter(data)
+        setContent(data.content || "")
+        countWords(data.content || "")
+      } catch (err: any) {
+        setError(err.message || "加载章节失败")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadChapter()
+  }, [chapterId])
+
+  // 统计字数
+  const countWords = (text: string) => {
+    // 移除 Markdown 标记、空格和标点符号后计算字数
+    const cleanText = text
+      .replace(/```[\s\S]*?```/g, "") // 移除代码块
+      .replace(/`.*?`/g, "") // 移除内联代码
+      .replace(/\[.*?\]\(.*?\)/g, "") // 移除链接
+      .replace(/\*\*(.*?)\*\*/g, "$1") // 移除粗体标记但保留内容
+      .replace(/\*(.*?)\*/g, "$1") // 移除斜体标记但保留内容
+      .replace(/\s+/g, "") // 移除空格
+      .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, "") // 移除非中英文数字字符
+    
+    setWordCount(cleanText.length)
   }
 
-  const analyzeText = () => {
-    setIsAiPanelOpen(true)
+  // 内容变更处理
+  const handleChange = useCallback((value: string | undefined) => {
+    const newContent = value || ""
+    setContent(newContent)
+    countWords(newContent)
+    debouncedSave(newContent)
+  }, [])
+
+  // 处理键盘输入
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const INDENT = "    " // 4个空格
+    // Tab/Shift+Tab 缩进处理
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      const textarea = e.currentTarget
+      const { selectionStart, selectionEnd, value } = textarea
+      // 多行选中时
+      if (selectionStart !== selectionEnd && value.slice(selectionStart, selectionEnd).includes('\n')) {
+        const lines = value.slice(selectionStart, selectionEnd).split('\n')
+        if (e.shiftKey) {
+          // Shift+Tab: 删除每行开头的缩进
+          const newLines = lines.map(line => line.startsWith(INDENT) ? line.slice(INDENT.length) : line)
+          const newValue = value.slice(0, selectionStart) + newLines.join('\n') + value.slice(selectionEnd)
+          setContent(newValue)
+          setTimeout(() => {
+            textarea.setSelectionRange(selectionStart, selectionEnd - (lines.length - newLines.filter((l, i) => lines[i].startsWith(INDENT)).length) * INDENT.length)
+          }, 0)
+        } else {
+          // Tab: 每行前加缩进
+          const newLines = lines.map(line => INDENT + line)
+          const newValue = value.slice(0, selectionStart) + newLines.join('\n') + value.slice(selectionEnd)
+          setContent(newValue)
+          setTimeout(() => {
+            textarea.setSelectionRange(selectionStart, selectionEnd + lines.length * INDENT.length)
+          }, 0)
+        }
+      } else {
+        // 单行或无选中
+        if (e.shiftKey) {
+          // Shift+Tab: 删除光标前的缩进
+          const before = value.substring(0, selectionStart)
+          if (before.endsWith(INDENT)) {
+            const newValue = value.substring(0, selectionStart - INDENT.length) + value.substring(selectionStart)
+            setContent(newValue)
+            setTimeout(() => {
+              textarea.setSelectionRange(selectionStart - INDENT.length, selectionStart - INDENT.length)
+            }, 0)
+          }
+        } else {
+          // Tab: 插入缩进
+          const newValue = value.substring(0, selectionStart) + INDENT + value.substring(selectionEnd)
+          setContent(newValue)
+          setTimeout(() => {
+            textarea.setSelectionRange(selectionStart + INDENT.length, selectionStart + INDENT.length)
+          }, 0)
+        }
+      }
+      return
+    }
+    // Enter 自动段落与首行缩进
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const textarea = e.currentTarget
+      const { selectionStart, selectionEnd, value } = textarea
+      const textBeforeCursor = value.substring(0, selectionStart)
+      const textAfterCursor = value.substring(selectionEnd)
+      // 检查光标前的文本是否已经有两个换行符
+      const hasDoubleNewline = textBeforeCursor.endsWith('\n\n')
+      const hasNewline = textBeforeCursor.endsWith('\n') && !hasDoubleNewline
+      // 每次新段落都插入4个空格缩进
+      let insertText = ''
+      if (hasDoubleNewline) {
+        insertText = '\n' + INDENT
+      } else if (hasNewline) {
+        insertText = '\n' + INDENT
+      } else {
+        insertText = '\n\n' + INDENT
+      }
+      const newText = textBeforeCursor + insertText + textAfterCursor
+      setContent(newText)
+      countWords(newText)
+      debouncedSave(newText)
+      // 设置新的光标位置
+      setTimeout(() => {
+        const newPosition = selectionStart + insertText.length
+        textarea.setSelectionRange(newPosition, newPosition)
+      }, 0)
+      return
+    }
+  }, [])
+
+  // 保存章节内容
+  const saveContent = async (text: string) => {
+    if (!chapterId || !chapter) return
+    
+    setIsSaving(true)
+    try {
+      // 计算实际字数（排除 Markdown 标记）
+      const wordCount = text
+        .replace(/```[\s\S]*?```/g, "")
+        .replace(/`.*?`/g, "")
+        .replace(/\[.*?\]\(.*?\)/g, "")
+        .replace(/\*\*(.*?)\*\*/g, "$1")
+        .replace(/\*(.*?)\*/g, "$1")
+        .replace(/\s+/g, "")
+        .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, "")
+        .length
+        
+      const updatedChapter = {
+        ...chapter,
+        content: text,
+        wordCount: wordCount
+      }
+      await updateChapter(chapterId, updatedChapter)
+      setLastSaved(new Date())
+    } catch (err) {
+      console.error("保存失败:", err)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // 使用 debounce 延迟保存，避免频繁请求
+  const debouncedSave = useCallback(
+    debounce((text: string) => saveContent(text), 1500),
+    [chapterId, chapter]
+  )
+
+  // 手动保存
+  const handleManualSave = async () => {
+    if (!chapterId || !chapter) return
+    
+    // 取消任何待处理的自动保存
+    debouncedSave.cancel()
+    await saveContent(content)
+  }
+
+  // 设置编辑器引用
+  const setEditorReference = useCallback((textarea: HTMLTextAreaElement | null) => {
+    editorRef.current = textarea
+  }, [])
+
+  // 持久化字体大小
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('novel-editor-font-size', String(fontSize))
+    }
+  }, [fontSize])
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <svg className="mx-auto h-12 w-12 animate-spin text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="mt-2 text-muted-foreground">加载章节中...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="rounded-md bg-red-50 p-4 text-center dark:bg-red-900/20">
+          <p className="text-red-800 dark:text-red-200">{error}</p>
+          <Button 
+            variant="outline" 
+            className="mt-4"
+            onClick={() => window.location.reload()}
+          >
+            重新加载
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!chapterId) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">请选择一个章节开始编辑</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+    <div className={`grid gap-6 ${isAiPanelOpen ? 'grid-cols-1 lg:grid-cols-[1fr_300px]' : 'grid-cols-1'}`}>
       <div className="flex flex-col rounded-lg border">
         <div className="flex items-center border-b p-3">
           <div className="flex-1">
             <div className="flex items-center gap-1 text-sm">
-              <span className="font-medium">第一章</span>
+              <span className="font-medium">{chapter?.title || "未命名章节"}</span>
               <span className="text-muted-foreground">•</span>
-              <span className="text-muted-foreground">江南纯爱小说</span>
+              <span className="text-muted-foreground">{chapter?.status || "草稿"}</span>
+              {lastSaved && (
+                <>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-muted-foreground">
+                    上次保存: {lastSaved.toLocaleTimeString()}
+                  </span>
+                </>
+              )}
+              {isSaving && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  正在保存...
+                </span>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
+          {/* 字体大小下拉菜单 */}
+          <div className="flex items-center gap-2 ml-2">
+            <FaFont className="text-muted-foreground mr-1" />
+            <select
+              value={fontSize}
+              onChange={e => setFontSize(Number(e.target.value))}
+              className="rounded border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              style={{ minWidth: 90 }}
+              aria-label="字体大小"
             >
-              <IconRobot className="mr-2 h-4 w-4" />
-              AI Analysis
-            </Button>
+              <option value={14}>较小（14px）</option>
+              <option value={16}>标准（16px）</option>
+              <option value={18}>较大（18px）</option>
+              <option value={20}>大（20px）</option>
+              <option value={24}>超大（24px）</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 ml-2">
+            <div className="flex border rounded-md overflow-hidden">
+              <Button 
+                variant={viewMode === "edit" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-none border-0"
+                onClick={() => setViewMode("edit")}
+              >
+                <IconEdit className="h-4 w-4 mr-1" />
+                编辑
+              </Button>
+              <Button 
+                variant={viewMode === "preview" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-none border-0"
+                onClick={() => setViewMode("preview")}
+              >
+                <IconEye className="h-4 w-4 mr-1" />
+                预览
+              </Button>
+            </div>
             <Button 
               variant="outline" 
               size="sm"
+              onClick={handleManualSave}
+              disabled={isSaving}
             >
-              <IconEdit className="mr-2 h-4 w-4" />
-              Edit Information
+              <IconDeviceFloppy className="mr-1 h-4 w-4" />
+              保存
             </Button>
           </div>
         </div>
-        <div className="flex-1 p-4">
-          <textarea
-            className="h-[60vh] w-full resize-none rounded-md border-0 bg-transparent p-2 text-lg leading-relaxed focus:outline-none"
-            value={content}
-            onChange={handleChange}
-            placeholder="开始写作您的小说内容..."
-          ></textarea>
+        
+        <div data-color-mode="light" className="flex-1 w-full">
+          {viewMode === "edit" && (
+            <div className="w-full">
+              <textarea
+                ref={setEditorReference}
+                value={content}
+                onChange={(e) => handleChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="w-full h-[75vh] p-4 resize-none border-none bg-transparent focus:outline-none focus:ring-0"
+                placeholder="开始写作您的小说内容..."
+                spellCheck={false}
+                style={{ fontSize: fontSize, lineHeight: 1.8 }}
+              />
+            </div>
+          )}
+          {viewMode === "preview" && (
+            <div
+              className="h-[75vh] p-4 overflow-auto prose prose-sm max-w-none"
+              style={{ fontSize: fontSize, lineHeight: 1.8, textIndent: 24 }}
+            >
+              <MDPreview
+                source={content.replace(/^( {4})/gm, "")}
+              />
+            </div>
+          )}
         </div>
+        
         <div className="flex items-center justify-between border-t p-3">
           <div className="text-sm text-muted-foreground">
-            字数：{content.length}
+            字数：{wordCount}
+            {chapter?.targetWordCount && (
+              <span className="ml-2">
+                / 目标：{chapter.targetWordCount}
+                {wordCount >= (chapter.targetWordCount || 0) && (
+                  <span className="ml-1 text-green-500">✓</span>
+                )}
+              </span>
+            )}
           </div>
           <div className="flex gap-2">
             <Button 
               variant="outline"
               size="sm"
+              onClick={() => setIsAiPanelOpen(!isAiPanelOpen)}
             >
-              <IconPlus className="mr-2 h-4 w-4" />
-              Add Chapter
+              <IconRobot className="mr-2 h-4 w-4" />
+              {isAiPanelOpen ? "隐藏AI助手" : "显示AI助手"}
             </Button>
             <Button 
               size="sm"
+              onClick={handleManualSave}
+              disabled={isSaving}
             >
-              Generate with AI
+              {isSaving ? "保存中..." : "保存内容"}
             </Button>
           </div>
         </div>
@@ -86,28 +408,72 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
       {isAiPanelOpen && (
         <div className="rounded-lg border">
           <div className="border-b p-3">
-            <h3 className="font-semibold">AI 分析与建议</h3>
+            <h3 className="font-semibold">AI 写作助手</h3>
           </div>
           <div className="space-y-4 p-4">
             <div className="rounded-md bg-accent/50 p-3">
               <h4 className="font-medium">情感节奏</h4>
               <p className="mt-1 text-sm text-muted-foreground">
-                开篇设定了江南烟雨的氛围，描绘了女主角的形象，通过意外的相遇埋下情感伏笔。建议在下文中增加角色之间的互动对话，展示性格特点。
+                分析当前章节的情感起伏和节奏变化，提供优化建议。
               </p>
+              <Button size="sm" className="mt-2 w-full">分析情感节奏</Button>
             </div>
             <div className="rounded-md bg-accent/50 p-3">
-              <h4 className="font-medium">场景描写</h4>
+              <h4 className="font-medium">情节生成</h4>
               <p className="mt-1 text-sm text-muted-foreground">
-                江南水乡的烟雨氛围描绘得比较简洁，可以增加一些细节，如雨滴落在青石板上的声音，远处的小桥流水，增强沉浸感。
+                根据现有内容，自动生成后续情节发展建议。
               </p>
+              <Button size="sm" className="mt-2 w-full">生成情节</Button>
             </div>
             <div className="rounded-md bg-accent/50 p-3">
-              <h4 className="font-medium">人物塑造</h4>
-              <p className="mt-1 text-sm text-muted-foreground">
-                女主角的外貌描写具体，但可以增加些许性格特点的暗示。男主角的描写相对简单，可以补充一些细节，如表情、眼神等。
-              </p>
+              <h4 className="font-medium">插入模板</h4>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => {
+                    const template = '## 场景描写\n\n阳光透过窗帘洒在木地板上，形成一片温暖的光斑。房间里弥漫着咖啡的香气，墙上的挂钟滴答作响，标记着时间的流逝。'
+                    setContent(content + '\n\n' + template)
+                    countWords(content + '\n\n' + template)
+                  }}
+                >
+                  场景描写
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => {
+                    const template = '## 人物对话\n\n"你真的决定要走了吗？" 她轻声问道，眼睛里含着泪水。\n\n他深吸一口气，"我必须这么做，为了我们两个人。"\n\n"但是..." 她的声音哽咽了。'
+                    setContent(content + '\n\n' + template)
+                    countWords(content + '\n\n' + template)
+                  }}
+                >
+                  人物对话
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => {
+                    const template = '## 内心独白\n\n我站在窗前，看着外面的雨滴敲打着玻璃。为什么每次做出决定都如此艰难？也许是因为我太在乎后果，太担心失败。但人生不就是一系列选择和冒险吗？'
+                    setContent(content + '\n\n' + template)
+                    countWords(content + '\n\n' + template)
+                  }}
+                >
+                  内心独白
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => {
+                    const template = '## 转场\n\n---\n\n三个月后，当春天的第一缕阳光照耀着城市。'
+                    setContent(content + '\n\n' + template)
+                    countWords(content + '\n\n' + template)
+                  }}
+                >
+                  时间转场
+                </Button>
+              </div>
             </div>
-            <Button className="w-full">生成更多建议</Button>
           </div>
         </div>
       )}

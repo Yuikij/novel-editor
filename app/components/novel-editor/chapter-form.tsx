@@ -10,15 +10,12 @@ interface ChapterFormProps {
 
 export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormProps) {
   const isEditing = !!chapter
-  const [form, setForm] = useState<Chapter>({
-    id: chapter?.id || `chapter-${Date.now()}`,
+  const [form, setForm] = useState<Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>>({
     title: chapter?.title || "",
     content: chapter?.content || "",
     summary: chapter?.summary || "",
-    order: chapter?.order || 1,
+    sortOrder: chapter?.sortOrder || 1,
     status: chapter?.status || "draft",
-    createdAt: chapter?.createdAt || new Date().toISOString(),
-    updatedAt: chapter?.updatedAt || new Date().toISOString(),
     wordCount: chapter?.wordCount || 0,
     targetWordCount: chapter?.targetWordCount || undefined,
     notes: chapter?.notes || ""
@@ -33,7 +30,16 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave(form)
+    if (isEditing && chapter) {
+      onSave({
+        id: chapter.id,
+        ...form,
+        createdAt: chapter.createdAt,
+        updatedAt: chapter.updatedAt
+      } as Chapter)
+    } else {
+      onSave(form as Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>)
+    }
   }
 
   return (
@@ -54,13 +60,13 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
             />
           </div>
           <div>
-            <label htmlFor="order" className="block text-sm font-medium">顺序</label>
+            <label htmlFor="sortOrder" className="block text-sm font-medium">顺序</label>
             <input
-              id="order"
-              name="order"
+              id="sortOrder"
+              name="sortOrder"
               type="number"
               min="1"
-              value={form.order}
+              value={form.sortOrder}
               onChange={handleFormChange}
               className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />

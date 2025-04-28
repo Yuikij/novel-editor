@@ -71,11 +71,18 @@ export default function WorldForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({
-      id: world?.id || `world-${Date.now()}`,
-      ...form,
-      elements
-    })
+    if (isEditing && world) {
+      onSave({
+        id: world.id,
+        ...form,
+        elements
+      })
+    } else {
+      onSave({
+        ...form,
+        elements
+      } as Omit<WorldBuilding, 'id'>)
+    }
   }
 
   return (

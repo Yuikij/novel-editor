@@ -1,12 +1,13 @@
 import { API_BASE_URL } from "../config/env"
+import type { ChapterStatus } from '@/app/types'
 
 export interface Chapter {
   id: string
   projectId?: string
   title: string
-  order: number
-  status: string
-  summary: string
+  sortOrder: number
+  status: ChapterStatus
+  summary?: string
   notes?: string
   wordCountGoal?: number
   wordCount?: number
@@ -17,9 +18,10 @@ export interface Chapter {
 
 // 字段映射：前端 targetWordCount <-> 后端 wordCountGoal
 function mapToBackend(chapter: any) {
-  const { targetWordCount, ...rest } = chapter
+  const { targetWordCount, order, ...rest } = chapter
   return {
     ...rest,
+    sortOrder: chapter.sortOrder,
     wordCountGoal: targetWordCount,
   }
 }
@@ -27,8 +29,10 @@ function mapToBackend(chapter: any) {
 function mapFromBackend(chapter: any) {
   return {
     ...chapter,
+    order: chapter.sortOrder,
+    status: (chapter.status === 'draft' || chapter.status === 'in-progress' || chapter.status === 'completed' || chapter.status === 'edited') ? chapter.status : 'draft',
     targetWordCount: chapter.wordCountGoal,
-  }
+  } as Chapter
 }
 
 // 获取章节列表（分页）
@@ -67,7 +71,7 @@ export async function fetchChapter(id: string) {
 }
 
 // 新建章节
-export async function createChapter(chapter: Chapter) {
+export async function createChapter(chapter: Omit<Chapter, 'id'>) {
   const res = await fetch(`${API_BASE_URL}/chapters/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

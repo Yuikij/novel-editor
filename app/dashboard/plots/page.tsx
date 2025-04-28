@@ -2,142 +2,86 @@
 
 export const runtime = 'edge';
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import DashboardHeader from "@/app/components/layout/dashboard-header"
 import { Button } from "@/app/components/ui/button"
 import PlotForm from "@/app/components/novel-editor/plot-form"
-import type { PlotStructure, PlotElement } from "@/app/types"
-
-const initialPlots: PlotStructure[] = [
-  {
-    id: "1",
-    title: "主线剧情",
-    type: "three-act",
-    elements: [
-      {
-        id: "act1-1",
-        title: "初次相遇",
-        description: "林雨荷在江南小镇遇见陈明辉，被其手中古画吸引",
-        position: 1,
-        status: "completed"
-      },
-      {
-        id: "act1-2",
-        title: "情感萌芽",
-        description: "陈明辉发现林雨荷的设计天赋，两人共同研究古画中的图案",
-        position: 2,
-        status: "completed"
-      },
-      {
-        id: "act2-1",
-        title: "家族阻挠",
-        description: "陈家得知陈明辉与平民女子交往，百般阻挠，周世豪出场",
-        position: 3,
-        status: "drafted"
-      },
-      {
-        id: "act2-2",
-        title: "设计比赛",
-        description: "林雨荷参加全国设计大赛，遭周世豪暗中破坏，但依靠实力获胜",
-        position: 4,
-        status: "planned"
-      },
-      {
-        id: "act3-1",
-        title: "身世之谜",
-        description: "林雨荷身世之谜揭晓，与陈家有渊源",
-        position: 5,
-        status: "planned"
-      },
-      {
-        id: "act3-2",
-        title: "圆满结局",
-        description: "两人最终冲破阻碍，实现自己的设计梦想，收获真爱",
-        position: 6,
-        status: "planned"
-      }
-    ]
-  },
-  {
-    id: "2",
-    title: "设计师梦想线",
-    type: "hero-journey",
-    elements: [
-      {
-        id: "journey-1",
-        title: "平凡生活",
-        description: "林雨荷作为普通设计师的日常生活",
-        position: 1,
-        status: "completed"
-      },
-      {
-        id: "journey-2",
-        title: "机遇与召唤",
-        description: "发现古老图案中隐藏的设计灵感，决定参加比赛",
-        position: 2,
-        status: "drafted"
-      },
-      {
-        id: "journey-3",
-        title: "挑战与成长",
-        description: "在比赛中遭遇困难，学会融合传统与现代设计",
-        position: 3,
-        status: "planned"
-      }
-    ]
-  }
-]
-
-type ModalState = {
-  isOpen: boolean;
-  mode: "add" | "edit" | "delete";
-  plot?: PlotStructure;
-}
+import type { Plot } from "@/app/lib/api/plot"
+import { fetchPlotsPage, createPlot, updatePlot, deletePlot } from "@/app/lib/api/plot"
 
 export default function PlotsPage() {
-  const [plots, setPlots] = useState<PlotStructure[]>(initialPlots)
-  const [modalState, setModalState] = useState<ModalState>({
+  const [plots, setPlots] = useState<Plot[]>([])
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    mode: "add" | "edit" | "delete";
+    plot?: Plot;
+  }>({
     isOpen: false,
     mode: "add"
   })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchList = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const res = await fetchPlotsPage({ page: 1, pageSize: 100 })
+      setPlots(res.data.records)
+    } catch (err: any) {
+      setError(err.message || "加载失败")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchList()
+  }, [])
 
   const handleAddPlot = () => {
-    setModalState({
-      isOpen: true,
-      mode: "add"
-    })
+    setModalState({ isOpen: true, mode: "add" })
   }
 
-  const handleEditPlot = (plot: PlotStructure) => {
-    setModalState({
-      isOpen: true,
-      mode: "edit",
-      plot
-    })
+  const handleEditPlot = (plot: Plot) => {
+    setModalState({ isOpen: true, mode: "edit", plot })
   }
 
-  const handleDeletePlot = (plot: PlotStructure) => {
-    setModalState({
-      isOpen: true,
-      mode: "delete",
-      plot
-    })
+  const handleDeletePlot = (plot: Plot) => {
+    setModalState({ isOpen: true, mode: "delete", plot })
   }
 
-  const handleSavePlot = (plot: PlotStructure) => {
-    if (modalState.mode === "add") {
-      setPlots([...plots, plot])
-    } else if (modalState.mode === "edit") {
-      setPlots(plots.map(p => p.id === plot.id ? plot : p))
-    }
-    setModalState({ isOpen: false, mode: "add" })
-  }
-
-  const handleConfirmDelete = () => {
-    if (modalState.plot) {
-      setPlots(plots.filter(p => p.id !== modalState.plot?.id))
+  const handleSavePlot = async (plot: Plot) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      if (modalState.mode === "add") {
+        await createPlot(plot)
+      } else if (modalState.mode === "edit" && plot.id) {
+        await updatePlot(plot.id, plot)
+      }
+      await fetchList()
       setModalState({ isOpen: false, mode: "add" })
+    } catch (err: any) {
+      setError(err.message || "保存失败")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!modalState.plot) return
+    setIsLoading(true)
+    setError(null)
+    try {
+      await deletePlot(modalState.plot.id)
+      await fetchList()
+      setModalState({ isOpen: false, mode: "add" })
+    } catch (err: any) {
+      setError(err.message || "删除失败")
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -293,93 +237,26 @@ export default function PlotsPage() {
           </div>
 
           <div className="mt-6 space-y-6">
-            {plots.map((plot) => (
-              <div
-                key={plot.id}
-                className="rounded-lg border bg-card transition-all hover:shadow-md"
-              >
-                <div className="flex items-center justify-between border-b p-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                      plot.type === 'three-act' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
-                      plot.type === 'hero-journey' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300' :
-                      plot.type === 'save-the-cat' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' :
-                      'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                    }`}>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold">{plot.title}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {plot.type === 'three-act' ? '三幕剧结构' :
-                         plot.type === 'hero-journey' ? '英雄之旅' :
-                         plot.type === 'save-the-cat' ? '猫猫结构' : '自定义结构'}
-                      </p>
-                    </div>
+            {isLoading && <div className="p-8 text-center">加载中...</div>}
+            {error && <div className="p-8 text-center text-red-500">{error}</div>}
+            <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {plots.map((plot) => (
+                <div
+                  key={plot.id}
+                  className="flex flex-col rounded-lg border bg-card transition-all hover:shadow-md"
+                >
+                  <div className="flex-1 p-4">
+                    <h3 className="text-xl font-semibold">{plot.title}</h3>
+                    <div className="mt-2 text-sm text-muted-foreground">{plot.description}</div>
+                    <div className="mt-2 text-xs text-muted-foreground">类型: {plot.type ?? '-'}</div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={() => handleEditPlot(plot)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      编辑
-                    </Button>
-                    <Button 
-                      onClick={() => handleDeletePlot(plot)}
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                    >
-                      删除
-                    </Button>
+                  <div className="flex justify-end gap-2 p-4 pt-0">
+                    <Button variant="ghost" size="sm" onClick={() => handleEditPlot(plot)}>编辑</Button>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeletePlot(plot)}>删除</Button>
                   </div>
                 </div>
-                <div className="p-4">
-                  <div className="relative">
-                    <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-muted"></div>
-                    <div className="space-y-4 relative">
-                      {plot.elements.map((element) => (
-                        <div key={element.id} className="flex items-start gap-4 pl-6 relative">
-                          <div className={`absolute left-0 top-2 h-4 w-4 rounded-full ${
-                            element.status === 'completed' ? 'bg-green-500' :
-                            element.status === 'drafted' ? 'bg-blue-500' : 'bg-gray-300'
-                          }`}></div>
-                          <div className="flex-1 rounded-lg border p-3">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                              <h4 className="font-medium">{element.title}</h4>
-                              <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                                element.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' :
-                                element.status === 'drafted' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' :
-                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
-                              }`}>
-                                {element.status === 'completed' ? '已完成' : 
-                                 element.status === 'drafted' ? '已起草' : '计划中'}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {element.description}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
 
             <div 
               onClick={handleAddPlot}

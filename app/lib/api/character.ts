@@ -12,6 +12,9 @@ export interface Character {
   notes?: string
   createdAt?: string
   updatedAt?: string
+  age?: number
+  gender?: 'male' | 'female' | 'other'
+  description?: string
 }
 
 function mapFromBackend(character: any) {

@@ -1,14 +1,14 @@
 import { useState } from "react"
 import { Button } from "@/app/components/ui/button"
-
-type ChapterStatus = "completed" | "in-progress" | "draft"
+import type { ChapterStatus } from "@/app/types"
 
 interface Chapter {
   id: string
   title: string
   wordCount: number
   status: ChapterStatus
-  summary: string
+  summary?: string
+  sortOrder: number
   targetWordCount?: number
 }
 
@@ -59,12 +59,12 @@ export default function ChapterSidebar({
             进行中
           </Button>
           <Button 
-            variant={filter === "draft" ? "default" : "secondary"}
+            variant={filter === "edited" ? "default" : "secondary"}
             size="sm" 
             className="px-2 py-1 text-xs h-auto"
-            onClick={() => setFilter("draft")}
+            onClick={() => setFilter("edited")}
           >
-            草稿
+            已编辑
           </Button>
         </div>
       </div>
@@ -103,9 +103,11 @@ export default function ChapterSidebar({
                           ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" 
                           : chapter.status === "in-progress"
                           ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100" 
+                          : chapter.status === "edited"
+                          ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
                           : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
                       }`}>
-                        {chapter.status === "completed" ? "已完成" : chapter.status === "in-progress" ? "进行中" : "草稿"}
+                        {chapter.status === "completed" ? "已完成" : chapter.status === "in-progress" ? "进行中" : chapter.status === "edited" ? "已编辑" : "草稿"}
                       </span>
                     </div>
                   </div>

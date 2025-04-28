@@ -16,13 +16,18 @@ import type { PlotElement, Chapter } from "@/app/types"
 import ChapterForm from "@/app/components/novel-editor/chapter-form"
 import OutlineForm, { OutlineNode } from "@/app/components/novel-editor/outline-form"
 import { fetchProject, Project } from "@/app/lib/api/project"
+import { fetchChaptersPage, createChapter, updateChapter, deleteChapter } from '@/app/lib/api/chapter'
+import { fetchCharactersByProject, createCharacter, updateCharacter, deleteCharacter as deleteCharacterApi } from '@/app/lib/api/character'
+import { deletePlot, fetchPlotsPage, createPlot, updatePlot } from '@/app/lib/api/plot'
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState<string>("write")
   const [chapters, setChapters] = useState<Chapter[]>([])
-  const [activeChapterId, setActiveChapterId] = useState<string>("1")
+  const [activeChapterId, setActiveChapterId] = useState<string>("")
   const [showChapterSidebar, setShowChapterSidebar] = useState<boolean>(true)
   const [characters, setCharacters] = useState<Character[]>([])
+  const [isCharactersLoading, setIsCharactersLoading] = useState(false)
+  const [charactersError, setCharactersError] = useState<string | null>(null)
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
     mode: 'add' | 'edit' | 'delete';
@@ -32,6 +37,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     mode: 'add',
   })
   const [plots, setPlots] = useState<PlotElement[]>([])
+  const [isPlotsLoading, setIsPlotsLoading] = useState(false)
+  const [plotsError, setPlotsError] = useState<string | null>(null)
   const [plotModalState, setPlotModalState] = useState<{
     isOpen: boolean;
     mode: 'add' | 'edit' | 'delete';
@@ -60,7 +67,38 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     fetchProject(params.id)
       .then(setProject)
       .catch(err => setHasError(err.message || '加载失败'))
-      .finally(() => setIsLoading(false))
+    // 加载章节列表
+    fetchChapters()
+  }, [params.id])
+
+  const fetchChapters = async () => {
+    setIsLoading(true)
+    try {
+      const res = await fetchChaptersPage({ projectId: params.id, page: 1, pageSize: 100 })
+      setChapters(res.data.records)
+    } catch (err: any) {
+      setHasError(err.message || '章节加载失败')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // 拉取角色列表
+  const fetchCharacters = async () => {
+    setIsCharactersLoading(true)
+    setCharactersError(null)
+    try {
+      const data = await fetchCharactersByProject(params.id)
+      setCharacters(data)
+    } catch (err: any) {
+      setCharactersError(err.message || '角色加载失败')
+    } finally {
+      setIsCharactersLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCharacters()
   }, [params.id])
 
   const toggleChapterSidebar = () => {
@@ -91,13 +129,22 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setModalState({ isOpen: true, mode: 'add' })
   }
 
-  const handleSaveCharacter = (character: Character) => {
-    if (modalState.mode === 'add') {
-      setCharacters([...characters, character])
-    } else if (modalState.mode === 'edit') {
-      setCharacters(characters.map(c => c.id === character.id ? character : c))
+  const handleSaveCharacter = async (character: Character) => {
+    setIsCharactersLoading(true)
+    setCharactersError(null)
+    try {
+      if (modalState.mode === 'add') {
+        await createCharacter({ ...character, projectId: params.id })
+      } else if (modalState.mode === 'edit' && character.id) {
+        await updateCharacter(character.id, { ...character, projectId: params.id })
+      }
+      await fetchCharacters()
+      setModalState({ isOpen: false, mode: 'add' })
+    } catch (err: any) {
+      setCharactersError(err.message || '保存角色失败')
+    } finally {
+      setIsCharactersLoading(false)
     }
-    setModalState({ isOpen: false, mode: 'add' })
   }
 
   const handleCancelModal = () => {
@@ -112,10 +159,18 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setModalState({ isOpen: true, mode: 'delete', character })
   }
 
-  const handleConfirmDelete = () => {
-    if (modalState.character) {
-      setCharacters(characters.filter(c => c.id !== modalState.character?.id))
+  const handleConfirmDelete = async () => {
+    if (!modalState.character) return
+    setIsCharactersLoading(true)
+    setCharactersError(null)
+    try {
+      await deleteCharacterApi(modalState.character.id)
+      await fetchCharacters()
       setModalState({ isOpen: false, mode: 'add' })
+    } catch (err: any) {
+      setCharactersError(err.message || '删除角色失败')
+    } finally {
+      setIsCharactersLoading(false)
     }
   }
 
@@ -123,13 +178,39 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setPlotModalState({ isOpen: true, mode: 'add' })
   }
 
-  const handleSavePlot = (plot: PlotElement) => {
-    if (plotModalState.mode === 'add') {
-      setPlots([...plots, plot])
-    } else if (plotModalState.mode === 'edit') {
-      setPlots(plots.map(p => p.id === plot.id ? plot : p))
+  const fetchPlots = async () => {
+    setIsPlotsLoading(true)
+    setPlotsError(null)
+    try {
+      const res = await fetchPlotsPage({ projectId: params.id, page: 1, pageSize: 100 })
+      setPlots(res.data.records)
+    } catch (err: any) {
+      setPlotsError(err.message || '情节加载失败')
+    } finally {
+      setIsPlotsLoading(false)
     }
-    setPlotModalState({ isOpen: false, mode: 'add' })
+  }
+
+  useEffect(() => {
+    fetchPlots()
+  }, [params.id])
+
+  const handleSavePlot = async (plot: PlotElement) => {
+    setIsPlotsLoading(true)
+    setPlotsError(null)
+    try {
+      if (plotModalState.mode === 'add') {
+        await createPlot({ ...plot, projectId: params.id })
+      } else if (plotModalState.mode === 'edit' && plot.id) {
+        await updatePlot(plot.id, { ...plot, projectId: params.id })
+      }
+      await fetchPlots()
+      setPlotModalState({ isOpen: false, mode: 'add' })
+    } catch (err: any) {
+      setPlotsError(err.message || '保存情节失败')
+    } finally {
+      setIsPlotsLoading(false)
+    }
   }
 
   const handleCancelPlotModal = () => {
@@ -144,10 +225,18 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setPlotModalState({ isOpen: true, mode: 'delete', plot })
   }
 
-  const handleConfirmDeletePlot = () => {
-    if (plotModalState.plot) {
-      setPlots(plots.filter(p => p.id !== plotModalState.plot?.id))
+  const handleConfirmDeletePlot = async () => {
+    if (!plotModalState.plot) return
+    setIsPlotsLoading(true)
+    setPlotsError(null)
+    try {
+      await deletePlot(plotModalState.plot.id)
+      await fetchPlots()
       setPlotModalState({ isOpen: false, mode: 'add' })
+    } catch (err: any) {
+      setPlotsError(err.message || '删除情节失败')
+    } finally {
+      setIsPlotsLoading(false)
     }
   }
 
@@ -204,13 +293,22 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setChapterModalState({ isOpen: true, mode: 'add' })
   }
 
-  const handleSaveChapter = (chapter: Chapter) => {
-    if (chapterModalState.mode === 'add') {
-      setChapters([...chapters, chapter])
-    } else if (chapterModalState.mode === 'edit') {
-      setChapters(chapters.map(c => c.id === chapter.id ? chapter : c))
+  const handleSaveChapter = async (chapter: Partial<Chapter>) => {
+    setIsLoading(true)
+    try {
+      if (chapterModalState.mode === 'add') {
+        const { id, createdAt, updatedAt, ...rest } = chapter
+        await createChapter({ ...rest, projectId: params.id, summary: chapter.summary ?? '' } as Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>)
+      } else if (chapterModalState.mode === 'edit' && chapter.id) {
+        await updateChapter(chapter.id, { ...chapter, summary: chapter.summary ?? '' } as Chapter)
+      }
+      await fetchChapters()
+      setChapterModalState({ isOpen: false, mode: 'add' })
+    } catch (err: any) {
+      setHasError(err.message || '保存章节失败')
+    } finally {
+      setIsLoading(false)
     }
-    setChapterModalState({ isOpen: false, mode: 'add' })
   }
 
   const handleCancelChapterModal = () => {
@@ -225,10 +323,18 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setDeleteChapterState({ isOpen: true, chapter })
   }
 
-  const handleConfirmDeleteChapter = () => {
+  const handleConfirmDeleteChapter = async () => {
     if (deleteChapterState.chapter) {
-      setChapters(chapters.filter(c => c.id !== deleteChapterState.chapter?.id))
-      setDeleteChapterState({ isOpen: false })
+      setIsLoading(true)
+      try {
+        await deleteChapter(deleteChapterState.chapter.id)
+        await fetchChapters()
+        setDeleteChapterState({ isOpen: false })
+      } catch (err: any) {
+        setHasError(err.message || '删除章节失败')
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -236,19 +342,74 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setDeleteChapterState({ isOpen: false })
   }
 
-  const handleMoveChapter = (chapterId: string, direction: 'up' | 'down') => {
+  const handleMoveChapter = async (chapterId: string, direction: 'up' | 'down') => {
     const idx = chapters.findIndex(c => c.id === chapterId)
     if (idx === -1) return
+
     let newChapters = [...chapters]
+    let swapIdx: number = -1
+    
     if (direction === 'up' && idx > 0) {
-      [newChapters[idx - 1], newChapters[idx]] = [newChapters[idx], newChapters[idx - 1]]
+      swapIdx = idx - 1
     } else if (direction === 'down' && idx < newChapters.length - 1) {
-      [newChapters[idx], newChapters[idx + 1]] = [newChapters[idx + 1], newChapters[idx]]
+      swapIdx = idx + 1
     }
-    // 重新设置order
-    newChapters = newChapters.map((c, i) => ({ ...c, order: i + 1 }))
+    
+    if (swapIdx === -1) return
+    
+    // 仅交换两个章节的 sortOrder 值
+    const currentChapter = { ...newChapters[idx] }
+    const swapChapter = { ...newChapters[swapIdx] }
+    
+    console.log('[章节移动] 操作前:', {
+      current: { id: currentChapter.id, sortOrder: currentChapter.sortOrder },
+      swap: { id: swapChapter.id, sortOrder: swapChapter.sortOrder },
+      direction
+    })
+    
+    const tempSortOrder = currentChapter.sortOrder
+    currentChapter.sortOrder = swapChapter.sortOrder
+    swapChapter.sortOrder = tempSortOrder
+    
+    console.log('[章节移动] 操作后:', {
+      current: { id: currentChapter.id, sortOrder: currentChapter.sortOrder },
+      swap: { id: swapChapter.id, sortOrder: swapChapter.sortOrder }
+    })
+    
+    // 更新数组顺序（仅用于 UI 显示）
+    newChapters[idx] = swapChapter
+    newChapters[swapIdx] = currentChapter
+    
     setChapters(newChapters)
+    setIsLoading(true)
+    try {
+      console.log('[章节移动] 提交到后端:', [
+        { id: currentChapter.id, sortOrder: currentChapter },
+        { id: swapChapter.id, sortOrder: swapChapter }
+      ])
+      await updateChapter(currentChapter.id, currentChapter)
+      await updateChapter(swapChapter.id, swapChapter)
+      await fetchChapters()
+    } catch (err: any) {
+      setHasError(err.message || '章节顺序更新失败')
+    } finally {
+      setIsLoading(false)
+    }
   }
+
+  // 自动选中第一个章节
+  useEffect(() => {
+    if (activeTab !== "write") return;
+    if (chapters.length > 0) {
+      // 检查当前 activeChapterId 是否在章节列表中
+      const exists = chapters.some(c => c.id === activeChapterId)
+      if (!activeChapterId || !exists) {
+        // 选中 sortOrder 最小的章节
+        const sorted = [...chapters].sort((a, b) => a.sortOrder - b.sortOrder)
+        setActiveChapterId(sorted[0].id)
+      }
+    }
+  }, [chapters, activeTab])
 
   if (isLoading) return <div className="p-8 text-center">加载中...</div>
   if (hasError) return <div className="p-8 text-center text-red-500">{hasError}</div>
@@ -348,7 +509,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                 <ChapterSidebar 
                   chapters={chapters}
                   activeChapterId={activeChapterId}
-                  onChapterSelect={setActiveChapterId}
+                  onChapterSelect={(id) => {
+                    setActiveChapterId(id)
+                    // 当章节改变时，重置错误状态
+                    setHasError(null)
+                  }}
                 />
               </div>
             )}
@@ -378,7 +543,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                     <span className="sr-only">Toggle Chapter Sidebar</span>
                   </Button>
                   <span className="text-sm text-muted-foreground">
-                    {chapters.find(c => c.id === activeChapterId)?.title || "Chapter"}
+                    {chapters.find(c => c.id === activeChapterId)?.title || "请选择章节"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -429,7 +594,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               </Button>
             </div>
             <div className="space-y-3">
-              {chapters.sort((a, b) => a.order - b.order).map((chapter, idx) => (
+              {chapters.sort((a, b) => a.sortOrder - b.sortOrder).map((chapter, idx) => (
                 <div key={chapter.id} className="flex items-center justify-between p-3 rounded-md border">
                   <div className="flex flex-col">
                     <div className="flex items-center gap-2">
@@ -501,6 +666,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                 </div>
               ))}
             </div>
+            {isCharactersLoading && <div className="p-8 text-center">加载中...</div>}
+            {charactersError && <div className="p-8 text-center text-red-500">{charactersError}</div>}
           </div>
         )}
         {activeTab === "plots" && (
@@ -549,6 +716,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
             ))}
+            {isPlotsLoading && <div className="p-8 text-center">加载中...</div>}
+            {plotsError && <div className="p-8 text-center text-red-500">{plotsError}</div>}
           </div>
         )}
         {activeTab === "outline" && (

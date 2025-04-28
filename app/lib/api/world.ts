@@ -1,13 +1,17 @@
 import { API_BASE_URL } from "../config/env"
+import type { WorldElement } from '@/app/types'
 
-export interface World {
-  id: string
+export interface WorldBase {
   name: string
-  description?: string
-  elements?: any[]
+  description: string
+  elements: WorldElement[]
   notes?: string
   createdAt?: string
   updatedAt?: string
+}
+
+export interface World extends WorldBase {
+  id: string
 }
 
 function mapFromBackend(world: any) {
@@ -50,7 +54,7 @@ export async function fetchWorld(id: string) {
 }
 
 // 新建世界观
-export async function createWorld(world: World) {
+export async function createWorld(world: Omit<World, 'id'>) {
   const res = await fetch(`${API_BASE_URL}/worlds/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

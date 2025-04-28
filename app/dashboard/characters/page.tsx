@@ -2,110 +2,87 @@
 
 export const runtime = 'edge';
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { CharacterIcon } from "@/app/components/ui/icons"
 import DashboardHeader from "@/app/components/layout/dashboard-header"
 import { Button } from "@/app/components/ui/button"
 import CharacterForm from "@/app/components/novel-editor/character-form"
 import type { Character } from "@/app/types"
-
-const initialCharacters: Character[] = [
-  {
-    id: "1",
-    name: "林雨荷",
-    role: "protagonist",
-    personality: ["温柔", "坚韧", "善良"],
-    background: "江南设计师，出身普通家庭，但有才华横溢的设计天赋。",
-    goals: ["成为知名设计师", "找到真爱"],
-    relationships: [],
-  },
-  {
-    id: "2",
-    name: "陈明辉",
-    role: "protagonist",
-    personality: ["沉稳", "专注", "略带神秘"],
-    background: "知名艺术收藏家，出身豪门，但不喜欢世俗的纷争。",
-    goals: ["寻找真正的艺术", "摆脱家族束缚"],
-    relationships: [
-      {
-        characterId: "1",
-        type: "love",
-        description: "对林雨荷一见钟情，被她的才华和纯真所吸引。",
-      },
-    ],
-  },
-  {
-    id: "3",
-    name: "周世豪",
-    role: "antagonist",
-    personality: ["傲慢", "精明", "势利"],
-    background: "商业巨子的独子，从小被宠溺长大，习惯了得到一切。",
-    goals: ["扩大家族势力", "追求林雨荷"],
-    relationships: [
-      {
-        characterId: "1",
-        type: "rival",
-        description: "觊觎林雨荷多时，想要占有她。",
-      },
-      {
-        characterId: "2",
-        type: "enemy",
-        description: "家族世交，但暗中较劲，视陈明辉为情敌。",
-      },
-    ],
-  },
-]
-
-type ModalState = {
-  isOpen: boolean;
-  mode: "add" | "edit" | "delete";
-  character?: Character;
-}
+import { fetchCharactersPage, createCharacter, updateCharacter, deleteCharacter } from "@/app/lib/api/character"
 
 export default function CharactersPage() {
-  const [characters, setCharacters] = useState<Character[]>(initialCharacters)
-  const [modalState, setModalState] = useState<ModalState>({
+  const [characters, setCharacters] = useState<Character[]>([])
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    mode: "add" | "edit" | "delete";
+    character?: Character;
+  }>({
     isOpen: false,
     mode: "add"
   })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchList = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const res = await fetchCharactersPage({ page: 1, pageSize: 100 })
+      setCharacters(res.data.records)
+    } catch (err: any) {
+      setError(err.message || "加载失败")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchList()
+  }, [])
 
   const handleAddCharacter = () => {
-    setModalState({
-      isOpen: true,
-      mode: "add"
-    })
+    setModalState({ isOpen: true, mode: "add" })
   }
 
   const handleEditCharacter = (character: Character) => {
-    setModalState({
-      isOpen: true,
-      mode: "edit",
-      character
-    })
+    setModalState({ isOpen: true, mode: "edit", character })
   }
 
   const handleDeleteCharacter = (character: Character) => {
-    setModalState({
-      isOpen: true,
-      mode: "delete",
-      character
-    })
+    setModalState({ isOpen: true, mode: "delete", character })
   }
 
-  const handleSaveCharacter = (character: Character) => {
-    if (modalState.mode === "add") {
-      setCharacters([...characters, character])
-    } else if (modalState.mode === "edit") {
-      setCharacters(characters.map(c => c.id === character.id ? character : c))
-    }
-    setModalState({ isOpen: false, mode: "add" })
-  }
-
-  const handleConfirmDelete = () => {
-    if (modalState.character) {
-      setCharacters(characters.filter(c => c.id !== modalState.character?.id))
+  const handleSaveCharacter = async (character: Character) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      if (modalState.mode === "add") {
+        await createCharacter(character)
+      } else if (modalState.mode === "edit" && character.id) {
+        await updateCharacter(character.id, character)
+      }
+      await fetchList()
       setModalState({ isOpen: false, mode: "add" })
+    } catch (err: any) {
+      setError(err.message || "保存失败")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!modalState.character) return
+    setIsLoading(true)
+    setError(null)
+    try {
+      await deleteCharacter(modalState.character.id)
+      await fetchList()
+      setModalState({ isOpen: false, mode: "add" })
+    } catch (err: any) {
+      setError(err.message || "删除失败")
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -244,6 +221,9 @@ export default function CharactersPage() {
             </Button>
           </div>
 
+          {isLoading && <div className="p-8 text-center">加载中...</div>}
+          {error && <div className="p-8 text-center text-red-500">{error}</div>}
+
           <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {characters.map((character) => (
               <div
@@ -269,7 +249,7 @@ export default function CharactersPage() {
                 <div className="flex-1 p-4">
                   <h3 className="text-xl font-semibold">{character.name}</h3>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {character.personality.map((trait, i) => (
+                    {character.personality?.map((trait, i) => (
                       <span
                         key={i}
                         className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
@@ -278,64 +258,19 @@ export default function CharactersPage() {
                       </span>
                     ))}
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <div className="mt-2 text-sm text-muted-foreground">
                     {character.background}
-                  </p>
-                  <div className="mt-3">
-                    <h4 className="text-sm font-medium">Goals:</h4>
-                    <ul className="mt-1 list-inside list-disc text-sm text-muted-foreground">
-                      {character.goals.map((goal, i) => (
-                        <li key={i}>{goal}</li>
-                      ))}
-                    </ul>
                   </div>
-                  {character.relationships.length > 0 && (
-                    <div className="mt-3">
-                      <h4 className="text-sm font-medium">Relationships:</h4>
-                      <div className="mt-1 space-y-1">
-                        {character.relationships.map((rel, i) => {
-                          const relatedChar = characters.find(c => c.id === rel.characterId);
-                          return (
-                            <div key={i} className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <span className="font-medium">{relatedChar?.name || rel.characterId}</span>
-                              <span>({rel.type})</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    年龄: {character.age ?? "-"} ｜ 性别: {character.gender === "male" ? "男" : character.gender === "female" ? "女" : "其他"}
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {character.description}
+                  </div>
                 </div>
-                <div className="flex items-center justify-between border-t p-4">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      character.role === "protagonist"
-                        ? "bg-primary/10 text-primary"
-                        : character.role === "antagonist"
-                        ? "bg-destructive/10 text-destructive"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {character.role.charAt(0).toUpperCase() +
-                      character.role.slice(1)}
-                  </span>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => handleEditCharacter(character)}
-                    >
-                      Edit
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="text-destructive hover:text-destructive/80" 
-                      onClick={() => handleDeleteCharacter(character)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
+                <div className="flex justify-end gap-2 p-4 pt-0">
+                  <Button variant="ghost" size="sm" onClick={() => handleEditCharacter(character)}>编辑</Button>
+                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteCharacter(character)}>删除</Button>
                 </div>
               </div>
             ))}

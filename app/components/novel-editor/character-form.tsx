@@ -19,14 +19,19 @@ export default function CharacterForm({
 }: CharacterFormProps) {
   const isEditing = !!character
   
-  const [form, setForm] = useState<Omit<Character, "id" | "relationships">>({
+  const [form, setForm] = useState<
+    Omit<Character, "id" | "relationships" | "age"> & { age: string }
+  >({
     name: character?.name || "",
     role: character?.role || "supporting",
     personality: character?.personality || [],
     background: character?.background || "",
     goals: character?.goals || [],
     imageUrl: character?.imageUrl || "",
-    notes: character?.notes || ""
+    notes: character?.notes || "",
+    age: character?.age !== undefined && character?.age !== null ? String(character.age) : "",
+    gender: character?.gender || "other",
+    description: character?.description || ""
   })
   
   const [personalityInput, setPersonalityInput] = useState("")
@@ -95,11 +100,16 @@ export default function CharacterForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({
-      id: character?.id || `character-${Date.now()}`,
+    const base = {
       ...form,
+      age: form.age === "" ? undefined : Number(form.age),
       relationships
-    })
+    }
+    if (isEditing && character?.id) {
+      onSave({ id: character.id, ...base })
+    } else {
+      onSave(base as any)
+    }
   }
 
   const filteredCharacters = existingCharacters.filter(char => 
@@ -140,6 +150,33 @@ export default function CharacterForm({
               <option value="antagonist">反派</option>
               <option value="supporting">配角</option>
               <option value="minor">次要角色</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="age" className="block text-sm font-medium">年龄</label>
+            <input
+              id="age"
+              name="age"
+              type="number"
+              min={0}
+              value={form.age}
+              onChange={handleFormChange}
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              placeholder="年龄"
+            />
+          </div>
+          <div>
+            <label htmlFor="gender" className="block text-sm font-medium">性别</label>
+            <select
+              id="gender"
+              name="gender"
+              value={form.gender}
+              onChange={handleFormChange}
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="male">男</option>
+              <option value="female">女</option>
+              <option value="other">其他</option>
             </select>
           </div>
         </div>
@@ -327,6 +364,19 @@ export default function CharacterForm({
             onChange={handleFormChange}
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             placeholder="其他备注信息..."
+          />
+        </div>
+
+        <div>
+          <label htmlFor="description" className="block text-sm font-medium">描述</label>
+          <textarea
+            id="description"
+            name="description"
+            rows={2}
+            value={form.description || ""}
+            onChange={handleFormChange}
+            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            placeholder="简要描述角色..."
           />
         </div>
       </div>
