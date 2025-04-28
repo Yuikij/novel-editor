@@ -4,7 +4,7 @@ import type { Chapter } from "@/app/types"
 
 interface ChapterFormProps {
   chapter?: Chapter
-  onSave: (chapter: Chapter) => void
+  onSave: (chapter: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>) => void
   onCancel: () => void
 }
 
