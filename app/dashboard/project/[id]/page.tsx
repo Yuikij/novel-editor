@@ -20,6 +20,8 @@ import { fetchChaptersPage, createChapter, updateChapter, deleteChapter } from '
 import { fetchCharactersByProject, createCharacter, updateCharacter, deleteCharacter as deleteCharacterApi } from '@/app/lib/api/character'
 import { deletePlot, fetchPlotsPage, createPlot, updatePlot } from '@/app/lib/api/plot'
 import { fetchOutlinePlotPointsPage, createOutlinePlotPoint, updateOutlinePlotPoint, deleteOutlinePlotPoint } from '@/app/lib/api/outline-plot-point'
+import { fetchCharacter } from '@/app/lib/api/character'
+import { toast } from 'react-hot-toast'
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState<string>("write")
@@ -64,6 +66,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const [project, setProject] = useState<Project | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [hasError, setHasError] = useState<string | null>(null)
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false)
 
   useEffect(() => {
     setIsLoading(true)
@@ -154,8 +157,17 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setModalState({ isOpen: false, mode: 'add' })
   }
 
-  const handleEditCharacter = (character: Character) => {
-    setModalState({ isOpen: true, mode: 'edit', character })
+  const handleEditCharacter = async (character: Character) => {
+    setIsFetchingDetails(true)
+    try {
+      const detailedCharacter = await fetchCharacter(character.id)
+      setModalState({ isOpen: true, mode: 'edit', character: detailedCharacter })
+    } catch (error) {
+      console.error("Failed to fetch character details:", error)
+      toast.error('获取角色详情失败，请稍后再试。')
+    } finally {
+      setIsFetchingDetails(false)
+    }
   }
 
   const handleDeleteCharacter = (character: Character) => {
@@ -816,6 +828,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               onSave={handleSaveCharacter}
               onCancel={handleCancelModal}
               existingCharacters={characters}
+              projectId={params.id}
             />
           </div>
         </div>

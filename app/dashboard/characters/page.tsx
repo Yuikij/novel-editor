@@ -10,6 +10,7 @@ import { Button } from "@/app/components/ui/button"
 import CharacterForm from "@/app/components/novel-editor/character-form"
 import type { Character } from "@/app/types"
 import { fetchCharactersPage, createCharacter, updateCharacter, deleteCharacter } from "@/app/lib/api/character"
+import { useParams } from "next/navigation"
 
 export default function CharactersPage() {
   const [characters, setCharacters] = useState<Character[]>([])
@@ -23,6 +24,8 @@ export default function CharactersPage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const params = useParams();
+  const projectId = params.projectId as string;
 
   const fetchList = async () => {
     setIsLoading(true)
@@ -302,6 +305,7 @@ export default function CharactersPage() {
               onSave={handleSaveCharacter}
               onCancel={handleCancelModal}
               existingCharacters={characters}
+              projectId={projectId}
             />
           </div>
         </div>

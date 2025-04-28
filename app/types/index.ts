@@ -20,7 +20,7 @@ export interface NovelMetadata {
   highlights?: string[]
   writingRequirements?: string[]
 }
-
+ 
 // Character Types
 export interface Character {
   id: string
@@ -38,9 +38,9 @@ export interface Character {
 }
 
 export interface CharacterRelationship {
-  id: string
+  id: string| null
   projectId: string
-  sourceCharacterId: string
+  sourceCharacterId: string| null
   targetCharacterId: string
   characterId: string | null
   type: string | null

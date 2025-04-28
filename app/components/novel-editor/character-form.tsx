@@ -12,6 +12,15 @@ interface CharacterFormProps {
   projectId: string
 }
 
+// Helper to sanitize relationships before saving
+/**
+ * Removes id and sourceCharacterId from each relationship object.
+ * This ensures the backend generates these fields as needed.
+ */
+function sanitizeRelationships(relationships: CharacterRelationship[]) {
+  return relationships.map(({ id, sourceCharacterId, ...rest }) => rest)
+}
+
 export default function CharacterForm({
   character,
   onSave,
@@ -121,7 +130,8 @@ export default function CharacterForm({
     const base = {
       ...form,
       age: form.age === "" ? undefined : Number(form.age),
-      relationships
+      // Strip id and sourceCharacterId from relationships before saving
+      relationships: sanitizeRelationships(relationships) as CharacterRelationship[]
     }
     if (isEditing && character?.id) {
       onSave({ id: character.id, ...base })

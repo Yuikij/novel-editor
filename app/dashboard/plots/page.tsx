@@ -8,7 +8,21 @@ import DashboardHeader from "@/app/components/layout/dashboard-header"
 import { Button } from "@/app/components/ui/button"
 import PlotForm from "@/app/components/novel-editor/plot-form"
 import type { Plot } from "@/app/lib/api/plot"
+import type { PlotElement } from "@/app/types"
 import { fetchPlotsPage, createPlot, updatePlot, deletePlot } from "@/app/lib/api/plot"
+
+// Helper to map Plot to PlotElement
+function mapPlotToPlotElement(plot?: Plot): PlotElement | undefined {
+  if (!plot) return undefined;
+  return {
+    id: plot.id,
+    title: plot.title,
+    description: plot.description ?? "",
+    position: typeof plot.plotOrder === "number" ? plot.plotOrder : 1,
+    chapterId: plot.chapterId,
+    status: "planned", // or infer from plot if available
+  };
+}
 
 export default function PlotsPage() {
   const [plots, setPlots] = useState<Plot[]>([])
@@ -294,9 +308,10 @@ export default function PlotsPage() {
               {modalState.mode === "add" ? "Create New Plot" : "Edit Plot"}
             </h2>
             <PlotForm
-              plot={modalState.plot}
+              plot={mapPlotToPlotElement(modalState.plot)}
               onSave={handleSavePlot}
               onCancel={handleCancelModal}
+              chapters={[]}
             />
           </div>
         </div>
