@@ -17,21 +17,6 @@ export interface Project {
   updatedAt?: string
 }
 
-function mapToBackend(project: any) {
-  const { targetWordCount, ...rest } = project
-  return {
-    ...rest,
-    wordCountGoal: targetWordCount,
-  }
-}
-
-function mapFromBackend(project: any) {
-  return {
-    ...project,
-    targetWordCount: project.wordCountGoal,
-  }
-}
-
 // 获取项目列表（分页）
 export async function fetchProjectsPage(params: {
   page?: number
@@ -54,7 +39,7 @@ export async function fetchProjectsPage(params: {
     ...data,
     data: {
       ...data.data,
-      records: data.data.records.map(mapFromBackend),
+      records: data.data.records,
     },
   }
 }
@@ -64,7 +49,7 @@ export async function fetchProject(id: string) {
   const res = await fetch(`${API_BASE_URL}/projects/${id}`)
   if (!res.ok) throw new Error('项目详情获取失败')
   const data = await res.json()
-  return mapFromBackend(data.data)
+  return data.data as Project
 }
 
 // 新建项目
@@ -72,11 +57,11 @@ export async function createProject(project: Project) {
   const res = await fetch(`${API_BASE_URL}/projects`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(mapToBackend(project)),
+    body: JSON.stringify(project),
   })
   if (!res.ok) throw new Error('项目创建失败')
   const data = await res.json()
-  return mapFromBackend(data.data)
+  return data.data as Project
 }
 
 // 更新项目
@@ -84,11 +69,11 @@ export async function updateProject(id: string, project: Project) {
   const res = await fetch(`${API_BASE_URL}/projects/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(mapToBackend(project)),
+    body: JSON.stringify(project),
   })
   if (!res.ok) throw new Error('项目更新失败')
   const data = await res.json()
-  return mapFromBackend(data.data)
+  return data.data as Project
 }
 
 // 删除项目

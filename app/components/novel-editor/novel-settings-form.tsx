@@ -1,10 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/app/components/ui/button"
 import type { NovelProject, NovelMetadata, WorldBuilding } from "@/app/types"
-import AiTitleGenerator from "./ai-title-generator"
 import { createProject, updateProject, Project } from '@/app/lib/api/project'
+import { API_BASE_URL } from '@/app/lib/config/env'
+
+// Define the structure for the AI name suggestion
+interface NameSuggestion {
+  name: string;
+  explanation: string;
+}
+
+// Define the structure for the API response
+interface ApiResponse {
+  code: number; // Changed to number based on typical API responses
+  message: string;
+  data: {
+    names: NameSuggestion[];
+  };
+}
 
 interface NovelSettingsFormProps {
   project?: NovelProject
@@ -21,12 +36,49 @@ export default function NovelSettingsForm({
 }: NovelSettingsFormProps) {
   const isEditing = !!project
   
-  const [form, setForm] = useState<Omit<NovelProject, "id" | "createdAt" | "updatedAt"> & { worldId?: string }>({
-    title: project?.title || "",
-    genre: project?.genre || "",
-    style: project?.style || "",
-    coverGradient: project?.coverGradient || ["#4f46e5", "#818cf8"],
-    metadata: {
+  // 添加 useEffect 来检查编辑时的项目数据
+  useEffect(() => {
+    // 只在编辑模式且项目存在时处理
+    if (isEditing && project) {
+      console.log("正在检查项目数据...", project);
+      
+      // 检查顶层字段 tags, highlights, writingRequirements 是否存在
+      // 如果存在但不在 metadata 中，则更新 form 状态
+      const needsUpdate = (
+        ('tags' in project && (!project.metadata?.tags || project.metadata.tags.length === 0)) ||
+        ('highlights' in project && (!project.metadata?.highlights || project.metadata.highlights.length === 0)) ||
+        ('writingRequirements' in project && (!project.metadata?.writingRequirements || project.metadata.writingRequirements.length === 0))
+      );
+      
+      if (needsUpdate) {
+        console.log("正在更新表单数据结构...");
+        
+        // 更新 form 状态，确保这些字段在 metadata 对象中
+        setForm(prev => ({
+          ...prev,
+          metadata: {
+            ...prev.metadata,
+            // 优先使用 metadata 中的值，如果不存在则使用顶层值
+            tags: (prev.metadata.tags?.length || 0) > 0 ? prev.metadata.tags || [] : ((project as any).tags || []),
+            highlights: (prev.metadata.highlights?.length || 0) > 0 ? prev.metadata.highlights || [] : ((project as any).highlights || []),
+            writingRequirements: (prev.metadata.writingRequirements?.length || 0) > 0 ? prev.metadata.writingRequirements || [] : ((project as any).writingRequirements || []),
+          }
+        }));
+        
+        // 同时更新独立状态变量
+        if ((project as any).highlights && (!project.metadata?.highlights || project.metadata.highlights.length === 0)) {
+          setHighlights((project as any).highlights || []);
+        }
+        
+        if ((project as any).writingRequirements && (!project.metadata?.writingRequirements || project.metadata.writingRequirements.length === 0)) {
+          setWritingRequirements((project as any).writingRequirements || []);
+        }
+      }
+    }
+  }, [project, isEditing]); // 依赖于 project 和 isEditing
+  
+  const [form, setForm] = useState<Omit<NovelProject, "id" | "createdAt" | "updatedAt"> & { worldId?: string }>(() => {
+    const initialMetadata: NovelMetadata = {
       synopsis: project?.metadata?.synopsis || "",
       tags: project?.metadata?.tags || [],
       targetAudience: project?.metadata?.targetAudience || "",
@@ -34,8 +86,16 @@ export default function NovelSettingsForm({
       status: project?.metadata?.status || "draft",
       highlights: project?.metadata?.highlights || [],
       writingRequirements: project?.metadata?.writingRequirements || []
-    },
-    worldId: project?.worldId || (worlds[0]?.id ?? "")
+    };
+    
+    return {
+      title: project?.title || "",
+      genre: project?.genre || "",
+      style: project?.style || "",
+      coverGradient: project?.coverGradient || ["#4f46e5", "#818cf8"],
+      metadata: initialMetadata,
+      worldId: project?.worldId || (worlds[0]?.id ?? "")
+    };
   })
   
   const [tagInput, setTagInput] = useState("")
@@ -45,9 +105,10 @@ export default function NovelSettingsForm({
   const [requirementInput, setRequirementInput] = useState("")
   
   // AI Title generation state
-  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [suggestions, setSuggestions] = useState<NameSuggestion[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const [submitLoading, setSubmitLoading] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -56,19 +117,20 @@ export default function NovelSettingsForm({
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
     isMetadata = false
   ) => {
+    const { name, value } = e.target;
     if (isMetadata) {
-      setForm({
-        ...form,
+      setForm(prevForm => ({
+        ...prevForm,
         metadata: {
-          ...form.metadata,
-          [e.target.name]: e.target.value
+          ...prevForm.metadata,
+          [name]: value
         }
-      })
+      }));
     } else {
-      setForm({
-        ...form,
-        [e.target.name]: e.target.value
-      })
+      setForm(prevForm => ({
+        ...prevForm,
+        [name]: value
+      }));
     }
   }
 
@@ -84,35 +146,33 @@ export default function NovelSettingsForm({
   }
 
   const addTag = () => {
-    if (!tagInput.trim()) return
-    
-    const updatedTags = [...(form.metadata.tags || []), tagInput.trim()]
+    const trimmedInput = tagInput.trim()
+    if (!trimmedInput) return
     
     setForm({
       ...form,
       metadata: {
         ...form.metadata,
-        tags: updatedTags
+        tags: [...(form.metadata.tags || []), trimmedInput]
       }
     })
     setTagInput("")
   }
 
   const removeTag = (index: number) => {
-    const currentTags = form.metadata.tags || []
-    
     setForm({
       ...form,
       metadata: {
         ...form.metadata,
-        tags: currentTags.filter((_, i) => i !== index)
+        tags: (form.metadata.tags || []).filter((_, i) => i !== index)
       }
     })
   }
 
   const addHighlight = () => {
-    if (!highlightInput.trim()) return
-    setHighlights([...highlights, highlightInput.trim()])
+    const trimmedInput = highlightInput.trim()
+    if (!trimmedInput) return
+    setHighlights([...highlights, trimmedInput])
     setHighlightInput("")
   }
 
@@ -121,8 +181,9 @@ export default function NovelSettingsForm({
   }
 
   const addRequirement = () => {
-    if (!requirementInput.trim()) return
-    setWritingRequirements([...writingRequirements, requirementInput.trim()])
+    const trimmedInput = requirementInput.trim()
+    if (!trimmedInput) return
+    setWritingRequirements([...writingRequirements, trimmedInput])
     setRequirementInput("")
   }
 
@@ -130,120 +191,59 @@ export default function NovelSettingsForm({
     setWritingRequirements(writingRequirements.filter((_, i) => i !== index))
   }
 
-  // Add this handler for setting title from suggestions
   const handleSetTitle = (title: string) => {
     setForm({
       ...form,
       title
     })
+    setShowSuggestions(false)
   }
 
-  const generateTitles = () => {
-    if (!form.genre) return
-    
+  const generateTitles = async () => {
+    if (!form.genre) {
+      setAiError("请先选择小说类型")
+      return
+    }
+
     setIsLoading(true)
-    
-    // Simulate API call - in a real application, this would call a backend service
-    setTimeout(() => {
-      // Generate sample titles based on genre and style
-      let titleSuggestions: string[] = []
-      
-      // Romance genre titles
-      if (form.genre === "言情" || form.genre === "现代言情") {
-        titleSuggestions = [
-          "心动时刻：都市爱恋",
-          "江南雨季",
-          "心之所向",
-          "春风十里",
-          "相遇在雨季",
-          "浮世绘爱恋"
-        ]
-      } 
-      // Fantasy genre titles
-      else if (form.genre === "玄幻" || form.genre === "仙侠") {
-        titleSuggestions = [
-          "九天神帝",
-          "修真世界",
-          "仙途问道",
-          "万古神王",
-          "剑道独尊",
-          "灵气复苏"
-        ]
+    setAiError(null)
+    setShowSuggestions(false)
+
+    try {
+      const params = new URLSearchParams()
+      if (form.genre) params.append("genre", form.genre)
+      if (form.style) params.append("style", form.style)
+      const theme = form.metadata.tags?.join(",") || ""
+      if (theme) params.append("theme", theme)
+
+      const response = await fetch(`${API_BASE_URL}/naming/novel?${params.toString()}`)
+
+      if (!response.ok) {
+        throw new Error(`API 请求失败: ${response.status} ${response.statusText}`)
       }
-      // Mystery genre titles
-      else if (form.genre === "悬疑") {
-        titleSuggestions = [
-          "隐秘真相",
-          "迷雾之谜",
-          "暗夜追踪",
-          "谜城",
-          "深渊之眼",
-          "无人知晓"
-        ]
-      }
-      // Historical titles
-      else if (form.genre === "历史") {
-        titleSuggestions = [
-          "大明风华",
-          "朝代崛起",
-          "王朝霸业",
-          "盛唐传奇",
-          "江山如画",
-          "帝国的黄昏"
-        ]
-      }
-      // Sci-fi titles
-      else if (form.genre === "科幻") {
-        titleSuggestions = [
-          "星际迷航",
-          "量子危机",
-          "超维度",
-          "未来战场",
-          "星辰大海",
-          "时空裂隙"
-        ]
-      }
-      // Default titles
-      else {
-        titleSuggestions = [
-          "时光之旅",
-          "未知世界",
-          "命运交织",
-          "人生旅途",
-          "心之所向",
-          "万里长空"
-        ]
+
+      const result: ApiResponse = await response.json()
+
+      if (result.code !== 200 || !result.data || !result.data.names) {
+        throw new Error(result.message || "未能获取标题建议")
       }
       
-      // Add style-based modifiers
-      if (form.style === "甜宠") {
-        titleSuggestions = [...titleSuggestions, "甜蜜约定", "暖爱时光", "蜜糖日记", "心动瞬间"]
-      } else if (form.style === "虐心") {
-        titleSuggestions = [...titleSuggestions, "泪之痕", "伤逝", "暗夜倾城", "心碎时刻"]
-      } else if (form.style === "轻松") {
-        titleSuggestions = [...titleSuggestions, "欢乐时光", "轻松日记", "悠闲生活", "都市闲情"]
-      } else if (form.style === "治愈") {
-        titleSuggestions = [...titleSuggestions, "心灵疗愈", "温暖时光", "阳光小巷", "微风拂面"]
+      const validSuggestions = result.data.names.filter(s => s.name && s.name.trim())
+      
+      if (validSuggestions.length === 0) {
+        setAiError("未能生成有效的标题建议")
+      } else {
+        setSuggestions(validSuggestions)
+        setShowSuggestions(true)
       }
-      
-      // Add tag-based suggestions if available
-      if (form.metadata.tags && form.metadata.tags.length > 0) {
-        const tagBasedSuggestions = form.metadata.tags.map(tag => {
-          if (tag.includes("爱情") || tag.includes("恋爱")) return `${tag}物语`
-          if (tag.includes("冒险")) return `${tag}征途`
-          if (tag.includes("成长")) return `${tag}之路`
-          return `${tag}传说`
-        })
-        titleSuggestions = [...titleSuggestions, ...tagBasedSuggestions]
-      }
-      
-      // Filter out duplicates and limit to 6 suggestions
-      const uniqueSuggestions = Array.from(new Set(titleSuggestions))
-      setSuggestions(uniqueSuggestions.slice(0, 6))
-      
+
+    } catch (error) {
+      console.error("Error generating titles:", error)
+      setAiError(error instanceof Error ? error.message : "获取标题建议时发生未知错误")
+      setSuggestions([])
+    } finally {
       setIsLoading(false)
-      setShowSuggestions(true)
-    }, 1000)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -251,52 +251,59 @@ export default function NovelSettingsForm({
     setSubmitLoading(true)
     setSubmitError(null)
     try {
-      // 构造API Project类型
+      const metadataToSave: NovelMetadata = {
+        ...form.metadata,
+        highlights,
+        writingRequirements,
+      }
+
       const apiProject: Partial<Project> = {
         id: project?.id,
         title: form.title,
         genre: form.genre,
         style: form.style,
-        synopsis: form.metadata.synopsis,
-        tags: form.metadata.tags,
-        targetAudience: form.metadata.targetAudience,
-        wordCountGoal: form.metadata.wordCountGoal,
-        highlights,
-        writingRequirements,
-        status: form.metadata.status,
+        synopsis: metadataToSave.synopsis,
+        tags: metadataToSave.tags,
+        targetAudience: metadataToSave.targetAudience,
+        wordCountGoal: metadataToSave.wordCountGoal,
+        highlights: metadataToSave.highlights,
+        writingRequirements: metadataToSave.writingRequirements,
+        status: metadataToSave.status,
         worldId: form.worldId,
         createdAt: project?.createdAt,
         updatedAt: project?.updatedAt,
       }
+
       let saved: Project
       if (project?.id) {
-        saved = await updateProject(project.id, apiProject as Project)
+        saved = await updateProject(project.id, apiProject as Omit<Project, 'createdAt' | 'updatedAt'> & { id: string })
       } else {
         saved = await createProject(apiProject as Project)
       }
-      // 转换为 NovelProject 类型
-      const novelProject = {
+
+      const novelProject: NovelProject = {
         id: saved.id,
         title: saved.title,
         genre: saved.genre || '',
-        style: saved.style,
+        style: saved.style || '',
         createdAt: saved.createdAt || new Date().toISOString(),
         updatedAt: saved.updatedAt || new Date().toISOString(),
-        coverGradient: project?.coverGradient || ["#4f46e5", "#818cf8"],
+        coverGradient: form.coverGradient,
         metadata: {
-          synopsis: saved.synopsis,
-          tags: saved.tags,
-          targetAudience: saved.targetAudience,
-          wordCountGoal: saved.wordCountGoal,
-          status: saved.status as any,
-          highlights: saved.highlights,
-          writingRequirements: saved.writingRequirements,
+          synopsis: saved.synopsis || '',
+          tags: saved.tags || [],
+          targetAudience: saved.targetAudience || '',
+          wordCountGoal: saved.wordCountGoal || 0,
+          status: saved.status as NovelMetadata['status'] || 'draft',
+          highlights: saved.highlights || [],
+          writingRequirements: saved.writingRequirements || [],
         },
-        worldId: saved.worldId,
+        worldId: saved.worldId || '',
       }
       onSave(novelProject)
     } catch (err: any) {
-      setSubmitError(err.message || '保存失败')
+      console.error("Failed to save project:", err)
+      setSubmitError(err.message || '保存项目失败')
     } finally {
       setSubmitLoading(false)
     }
@@ -313,13 +320,14 @@ export default function NovelSettingsForm({
   ]
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6 p-4 md:p-6 bg-card text-card-foreground rounded-lg shadow">
+      <div className="space-y-4 border-b pb-6 mb-6">
+        <h2 className="text-lg font-semibold leading-tight">基本设置</h2>
         <div>
-          <label htmlFor="title" className="block text-sm font-medium">
-            小说名称
+          <label htmlFor="title" className="block text-sm font-medium mb-1">
+            小说名称 <span className="text-destructive">*</span>
           </label>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="flex items-stretch gap-2">
             <input
               id="title"
               name="title"
@@ -327,47 +335,64 @@ export default function NovelSettingsForm({
               required
               value={form.title}
               onChange={(e) => handleFormChange(e)}
-              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              placeholder="作品名称"
+              className="flex-grow block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              placeholder="给你的大作起个名字吧"
             />
-            <Button 
+            <Button
               type="button"
               onClick={generateTitles}
               disabled={isLoading || !form.genre}
               className="flex-shrink-0"
+              variant="outline"
+              aria-label="使用 AI 智能取名"
+              title="使用 AI 智能取名"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mr-2 h-4 w-4"
-              >
-                <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18" />
-              </svg>
-              AI 智能取名
+              {isLoading ? (
+                <svg className="animate-spin mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mr-2 h-4 w-4"
+                >
+                  <path d="m15 5 4 4" />
+                  <path d="M13 7 8.7 2.7a2.41 2.41 0 0 0-3.4 0L2.7 5.3a2.41 2.41 0 0 0 0 3.4L7 13" />
+                  <path d="m8 6 2-2" />
+                  <path d="M17 11 7 21" />
+                  <path d="M14 14 9 19" />
+                </svg>
+              )}
+              {isLoading ? "生成中..." : "AI 取名"}
             </Button>
           </div>
-          
+          {aiError && (
+            <p className="mt-2 text-sm text-destructive">{aiError}</p>
+          )}
           {showSuggestions && suggestions.length > 0 && (
-            <div className="mt-3 rounded-md border p-3 bg-accent/20">
-              <h3 className="text-sm font-medium mb-2">智能标题建议</h3>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {suggestions.map((title, index) => (
-                  <div 
+            <div className="mt-3 rounded-md border border-border bg-muted/40 p-3">
+              <h3 className="text-sm font-medium mb-2 text-muted-foreground">智能标题建议：</h3>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {suggestions.map((suggestion, index) => (
+                  <div
                     key={index}
-                    className="flex items-center justify-between rounded-md bg-background px-3 py-2 text-sm cursor-pointer hover:bg-accent/30"
-                    onClick={() => {
-                      handleSetTitle(title);
-                      setShowSuggestions(false);
-                    }}
+                    className="flex items-center justify-between rounded-md bg-background px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors group"
+                    onClick={() => handleSetTitle(suggestion.name)}
+                    title={suggestion.explanation || `选择 "${suggestion.name}" 作为标题`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSetTitle(suggestion.name); }}
                   >
-                    <span>{title}</span>
+                    <span className="truncate flex-grow pr-2">{suggestion.name}</span>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -378,7 +403,7 @@ export default function NovelSettingsForm({
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="h-4 w-4 text-muted-foreground"
+                      className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                     >
                       <path d="M5 12h14" />
                       <path d="m12 5 7 7-7 7" />
@@ -386,259 +411,265 @@ export default function NovelSettingsForm({
                   </div>
                 ))}
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 text-xs"
+                onClick={() => setShowSuggestions(false)}
+              >
+                关闭建议
+              </Button>
             </div>
           )}
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="genre" className="block text-sm font-medium">
-              小说类型
+            <label htmlFor="genre" className="block text-sm font-medium mb-1">
+              小说类型 <span className="text-destructive">*</span>
             </label>
             <select
               id="genre"
               name="genre"
+              required
               value={form.genre}
               onChange={(e) => handleFormChange(e)}
-              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
-              <option value="">选择类型</option>
-              {genreOptions.map((genre) => (
-                <option key={genre} value={genre}>{genre}</option>
+              <option value="" disabled>选择类型</option>
+              {genreOptions.map(option => (
+                <option key={option} value={option}>{option}</option>
               ))}
             </select>
+            {!form.genre && <p className="mt-1 text-xs text-muted-foreground">选择类型后可使用 AI 取名</p>}
           </div>
           <div>
-            <label htmlFor="style" className="block text-sm font-medium">
+            <label htmlFor="style" className="block text-sm font-medium mb-1">
               写作风格
             </label>
             <select
               id="style"
               name="style"
-              value={form.style || ""}
+              value={form.style}
               onChange={(e) => handleFormChange(e)}
-              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
-              <option value="">选择风格</option>
-              {styleOptions.map((style) => (
-                <option key={style} value={style}>{style}</option>
+              <option value="">选择风格 (可选)</option>
+              {styleOptions.map(option => (
+                <option key={option} value={option}>{option}</option>
               ))}
             </select>
           </div>
         </div>
 
         <div>
-          <label htmlFor="synopsis" className="block text-sm font-medium">
-            简介
+          <label htmlFor="worldId" className="block text-sm font-medium mb-1">
+            关联世界观
+          </label>
+          <select
+            id="worldId"
+            name="worldId"
+            value={(form.worldId as string | undefined) || ""}
+            onChange={(e) => handleFormChange(e)}
+            className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <option value="">无 (不关联)</option>
+            {worlds.length === 0 && <option disabled>没有可用的世界观设定</option>}
+            {worlds.map(world => (
+              <option key={world.id} value={world.id||""}>{world.name}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">将小说与已创建的世界观设定关联。</p>
+        </div>
+      </div>
+
+      <div className="space-y-4 border-b pb-6 mb-6">
+        <h2 className="text-lg font-semibold leading-tight">元数据设置</h2>
+        <div>
+          <label htmlFor="synopsis" className="block text-sm font-medium mb-1">
+            故事简介
           </label>
           <textarea
             id="synopsis"
             name="synopsis"
-            rows={3}
-            value={form.metadata.synopsis || ""}
+            rows={4}
+            value={form.metadata.synopsis}
             onChange={(e) => handleFormChange(e, true)}
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="小说简介..."
+            className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            placeholder="简要描述你的故事核心内容..."
           />
         </div>
 
         <div>
-          <label htmlFor="tags" className="block text-sm font-medium">
-            标签
+          <label htmlFor="tags" className="block text-sm font-medium mb-1">
+            标签 (用于分类和搜索)
           </label>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-2">
             <input
               id="tags"
               type="text"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
-              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              placeholder="恋爱, 成长, 冒险..."
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+              className="flex-grow block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              placeholder="输入标签后按回车添加"
             />
-            <Button 
-              type="button" 
-              onClick={addTag}
-              disabled={!tagInput.trim()}
-            >
-              添加
-            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={addTag}>添加标签</Button>
           </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {(form.metadata.tags || []).map((tag, index) => (
-              <div
-                key={index}
-                className="flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
-              >
-                {tag}
-                <button
-                  type="button"
-                  onClick={() => removeTag(index)}
-                  className="ml-2 text-primary hover:text-primary/70"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {(form.metadata.tags || []).length === 0 && (
-              <p className="text-sm text-muted-foreground">暂无标签</p>
-            )}
-          </div>
+          {form.metadata.tags && form.metadata.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {form.metadata.tags.map((tag, index) => (
+                <span key={index} className="inline-flex items-center rounded-full bg-secondary text-secondary-foreground px-2.5 py-0.5 text-xs font-medium">
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(index)}
+                    className="ml-1.5 inline-flex text-secondary-foreground hover:text-destructive"
+                    aria-label={`移除标签 ${tag}`}
+                  >
+                    &times;
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">添加的标签会影响 AI 取名建议。</p>
         </div>
 
-        <div>
-          <label htmlFor="targetAudience" className="block text-sm font-medium">
-            目标读者
-          </label>
-          <input
-            id="targetAudience"
-            name="targetAudience"
-            type="text"
-            value={form.metadata.targetAudience || ""}
-            onChange={(e) => handleFormChange(e, true)}
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="青少年, 女性, 男性, 儿童..."
-          />
-        </div>
-
-        <div>
-          <label htmlFor="wordCountGoal" className="block text-sm font-medium">
-            目标字数
-          </label>
-          <input
-            id="wordCountGoal"
-            name="wordCountGoal"
-            type="number"
-            min="0"
-            value={form.metadata.wordCountGoal || ""}
-            onChange={handleWordCountChange}
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="50000"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium">
-            故事爆点
-          </label>
-          <div className="mt-1 flex items-center gap-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="targetAudience" className="block text-sm font-medium mb-1">
+              目标读者
+            </label>
             <input
+              id="targetAudience"
+              name="targetAudience"
               type="text"
-              value={highlightInput}
-              onChange={(e) => setHighlightInput(e.target.value)}
-              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              placeholder="特别吸引人的情节点..."
+              value={form.metadata.targetAudience}
+              onChange={(e) => handleFormChange(e, true)}
+              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              placeholder="例如：青少年、职场女性..."
             />
-            <Button 
-              type="button" 
-              onClick={addHighlight}
-              disabled={!highlightInput.trim()}
-            >
-              添加
-            </Button>
           </div>
-          <div className="mt-2 space-y-2">
-            {highlights.map((highlight, index) => (
-              <div 
-                key={index} 
-                className="flex items-center justify-between rounded-md bg-accent/50 px-3 py-2"
-              >
-                <span className="text-sm">{highlight}</span>
-                <button
-                  type="button"
-                  onClick={() => removeHighlight(index)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {highlights.length === 0 && (
-              <p className="text-sm text-muted-foreground">暂无故事爆点</p>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium">
-            写作要求
-          </label>
-          <div className="mt-1 flex items-center gap-2">
+          <div>
+            <label htmlFor="wordCountGoal" className="block text-sm font-medium mb-1">
+              目标字数
+            </label>
             <input
-              type="text"
-              value={requirementInput}
-              onChange={(e) => setRequirementInput(e.target.value)}
-              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              placeholder="特定文风, 叙事手法, 禁止内容..."
+              id="wordCountGoal"
+              name="wordCountGoal"
+              type="number"
+              min="0"
+              step="1000"
+              value={form.metadata.wordCountGoal}
+              onChange={handleWordCountChange}
+              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              placeholder="例如：100000"
             />
-            <Button 
-              type="button" 
-              onClick={addRequirement}
-              disabled={!requirementInput.trim()}
-            >
-              添加
-            </Button>
-          </div>
-          <div className="mt-2 space-y-2">
-            {writingRequirements.map((requirement, index) => (
-              <div 
-                key={index} 
-                className="flex items-center justify-between rounded-md bg-accent/50 px-3 py-2"
-              >
-                <span className="text-sm">{requirement}</span>
-                <button
-                  type="button"
-                  onClick={() => removeRequirement(index)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {writingRequirements.length === 0 && (
-              <p className="text-sm text-muted-foreground">暂无写作要求</p>
-            )}
           </div>
         </div>
 
         <div>
-          <label htmlFor="status" className="block text-sm font-medium">
-            项目状态
+          <label htmlFor="status" className="block text-sm font-medium mb-1">
+            创作状态
           </label>
           <select
             id="status"
             name="status"
             value={form.metadata.status}
             onChange={(e) => handleFormChange(e, true)}
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           >
             <option value="draft">草稿</option>
-            <option value="in-progress">进行中</option>
-            <option value="completed">已完成</option>
-            <option value="published">已发布</option>
+            <option value="writing">连载中</option>
+            <option value="completed">已完结</option>
+            <option value="on_hold">暂停</option>
+            <option value="archived">已归档</option>
           </select>
         </div>
 
         <div>
-          <label htmlFor="worldId" className="block text-sm font-medium">世界观</label>
-          <select
-            id="worldId"
-            name="worldId"
-            value={form.worldId || ""}
-            onChange={handleFormChange}
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="">无</option>
-            {worlds.map((world) => (
-              <option key={world.id} value={world.id||""}>{world.name}</option>
-            ))}
-          </select>
+          <label htmlFor="highlights" className="block text-sm font-medium mb-1">
+            作品亮点 (卖点)
+          </label>
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              id="highlights"
+              type="text"
+              value={highlightInput}
+              onChange={(e) => setHighlightInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addHighlight())}
+              className="flex-grow block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              placeholder="输入亮点后按回车添加"
+            />
+            <Button type="button" variant="outline" size="sm" onClick={addHighlight}>添加亮点</Button>
+          </div>
+          {highlights.length > 0 && (
+            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+              {highlights.map((highlight, index) => (
+                <li key={index} className="flex items-center justify-between">
+                  <span>{highlight}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeHighlight(index)}
+                    className="ml-2 text-xs text-destructive hover:underline"
+                    aria-label={`移除亮点 ${highlight}`}
+                  >
+                    移除
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="writingRequirements" className="block text-sm font-medium mb-1">
+            写作要求 (AI 辅助)
+          </label>
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              id="writingRequirements"
+              type="text"
+              value={requirementInput}
+              onChange={(e) => setRequirementInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addRequirement())}
+              className="flex-grow block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              placeholder="例如：避免过多心理描写，按回车添加"
+            />
+            <Button type="button" variant="outline" size="sm" onClick={addRequirement}>添加要求</Button>
+          </div>
+          {writingRequirements.length > 0 && (
+            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+              {writingRequirements.map((req, index) => (
+                <li key={index} className="flex items-center justify-between">
+                  <span>{req}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeRequirement(index)}
+                    className="ml-2 text-xs text-destructive hover:underline"
+                    aria-label={`移除要求 ${req}`}
+                  >
+                    移除
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">这些要求将用于指导 AI 续写、润色等功能。</p>
         </div>
       </div>
 
-      {submitError && <div className="text-red-500 text-sm">{submitError}</div>}
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onCancel}>取消</Button>
-        <Button type="submit" disabled={submitLoading}>{submitLoading ? '保存中...' : isEditing ? '保存修改' : '创建项目'}</Button>
+      <div className="flex justify-end gap-3 pt-4">
+        {submitError && (
+          <p className="text-sm text-destructive mr-auto self-center">{submitError}</p>
+        )}
+        <Button type="button" variant="outline" onClick={onCancel} disabled={submitLoading}>
+          取消
+        </Button>
+        <Button type="submit" disabled={submitLoading || !form.title || !form.genre}>
+          {submitLoading ? '保存中...' : (isEditing ? '保存修改' : '创建项目')}
+        </Button>
       </div>
     </form>
   )
