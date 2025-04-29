@@ -20,6 +20,9 @@ export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (r
 
   const [worlds, setWorlds] = useState<WorldBuilding[]>([]);
 
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
   const fetchList = () => {
     setIsLoading(true);
     fetchProjectsPage({ page: 1, pageSize: 20 })
@@ -108,6 +111,12 @@ export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (r
   const formatDate = (date: string) =>
     new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(date));
 
+  const handleCreateProject = async (project: NovelProject) => {
+    // ...创建逻辑...
+    setCreateModalOpen(false);
+    fetchList();
+  };
+
   if (isLoading) return <div className="p-8 text-center">加载中...</div>;
   if (hasError) return <div className="p-8 text-center text-red-500">{hasError}</div>;
 
@@ -139,7 +148,7 @@ export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (r
             variant="outline"
             size="lg"
             className="w-full h-full flex flex-col items-center justify-center p-8 gap-2 hover:bg-accent hover:text-accent-foreground"
-            onClick={onCreateNew}
+            onClick={() => setCreateModalOpen(true)}
           >
             <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
             <p className="font-medium">创建新项目</p>
@@ -163,6 +172,19 @@ export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (r
       {editSuccessMsg && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded shadow">
           {editSuccessMsg}
+        </div>
+      )}
+      {createModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl">
+            <h2 className="text-xl font-bold mb-4">新建项目</h2>
+            <NovelSettingsForm
+              onSave={handleCreateProject}
+              onCancel={() => setCreateModalOpen(false)}
+              worlds={worlds}
+            />
+            {createError && <div className="text-red-500 mt-2">{createError}</div>}
+          </div>
         </div>
       )}
     </div>
