@@ -79,9 +79,10 @@ export default function WorldForm({
       })
     } else {
       onSave({
+        id:null,
         ...form,
         elements
-      } as Omit<WorldBuilding, 'id'>)
+      } as WorldBuilding)
     }
   }
 

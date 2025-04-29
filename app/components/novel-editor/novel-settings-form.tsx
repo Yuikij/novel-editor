@@ -629,7 +629,7 @@ export default function NovelSettingsForm({
           >
             <option value="">无</option>
             {worlds.map((world) => (
-              <option key={world.id} value={world.id}>{world.name}</option>
+              <option key={world.id} value={world.id||""}>{world.name}</option>
             ))}
           </select>
         </div>

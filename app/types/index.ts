@@ -52,7 +52,7 @@ export interface CharacterRelationship {
 
 // World Building Types
 export interface WorldBuilding {
-  id: string
+  id: string| null
   name: string
   description: string
   elements: WorldElement[]

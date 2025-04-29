@@ -78,7 +78,7 @@ export async function updateWorld(id: string, world: World) {
 }
 
 // 删除世界观
-export async function deleteWorld(id: string) {
+export async function deleteWorld(id: string|null) {
   const res = await fetch(`${API_BASE_URL}/worlds/${id}`, {
     method: 'DELETE' })
   if (!res.ok) throw new Error('世界观删除失败')

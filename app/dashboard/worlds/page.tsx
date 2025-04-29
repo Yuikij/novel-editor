@@ -97,7 +97,7 @@ export default function WorldsPage() {
     setModalState({ isOpen: true, mode: "delete", world })
   }
 
-  const handleSaveWorld = async (world: Partial<World>) => {
+  const handleSaveWorld = async (world: WorldBuilding) => {
     setIsLoading(true)
     try {
       if (modalState.mode === "add") {
