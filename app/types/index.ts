@@ -4,6 +4,7 @@ export interface NovelProject {
   title: string
   genre: string
   style?: string
+  type?: string
   createdAt: string
   updatedAt: string
   coverGradient: string[]
@@ -81,6 +82,7 @@ export interface Chapter {
   wordCount: number
   targetWordCount?: number
   notes?: string
+  type?: string
 }
 
 // Plot and Outline Types
@@ -98,6 +100,8 @@ export interface PlotElement {
   position: number
   chapterId?: string
   status: 'planned' | 'drafted' | 'completed'
+  characterIds?: string[]
+  type?: string
 }
 
 // Analysis Types

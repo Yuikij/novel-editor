@@ -595,7 +595,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                     {chapters.find(c => c.id === activeChapterId)?.title || "请选择章节"}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                {/* <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" className="h-8">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -613,7 +613,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                     </svg>
                     保存章节
                   </Button>
-                </div>
+                </div> */}
               </div>
               <NovelEditor projectId={params.id} chapterId={activeChapterId} />
             </div>

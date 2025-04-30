@@ -117,7 +117,7 @@ export default function ChapterSidebar({
           </div>
         )}
       </div>
-      <div className="p-3 border-t">
+      {/* <div className="p-3 border-t">
         <Button variant="default" size="sm" className="w-full justify-center">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -136,7 +136,7 @@ export default function ChapterSidebar({
           </svg>
           添加新章节
         </Button>
-      </div>
+      </div> */}
     </div>
   )
 } 

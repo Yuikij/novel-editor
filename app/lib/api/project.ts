@@ -3,8 +3,9 @@ import { API_BASE_URL } from "../config/env"
 export interface Project {
   id: string
   title: string
-  genre?: string
+  genre: string
   style?: string
+  type?: string // 结构类型
   synopsis?: string
   tags?: string[]
   targetAudience?: string

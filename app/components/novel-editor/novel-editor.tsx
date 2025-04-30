@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/app/components/ui/button"
-import { IconRobot, IconDeviceFloppy, IconEye, IconEdit } from "@tabler/icons-react"
+import { IconRobot, IconDeviceFloppy, IconEye, IconEdit, IconMaximize, IconMinimize } from "@tabler/icons-react"
 import { FaFont } from "react-icons/fa"
 import { fetchChapter, updateChapter } from "@/app/lib/api/chapter"
 import debounce from "lodash.debounce"
 import dynamic from "next/dynamic"
 import "@uiw/react-md-editor/markdown-editor.css"
 import "@uiw/react-markdown-preview/markdown.css"
+import { API_BASE_URL } from "@/app/lib/config/env"
 
 // 动态导入 MDEditor 以避免 SSR 问题
 const MDEditor = dynamic(
@@ -44,6 +45,12 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
     }
     return 16
   })
+  const [showGenOptions, setShowGenOptions] = useState(false)
+  const [genPrompt, setGenPrompt] = useState("")
+  const [genWordCount, setGenWordCount] = useState("")
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const editorContainerRef = useRef<HTMLDivElement | null>(null)
 
   // 加载章节内容
   useEffect(() => {
@@ -231,6 +238,66 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
     }
   }, [fontSize])
 
+  // 你的内容生成处理函数（如无则需实现）
+  const handleGenerateContent = async ({ prompt, wordCount }: { prompt?: string; wordCount?: string }) => {
+    if (!chapterId || !projectId) return;
+    setIsGenerating(true);
+    try {
+      const params = new URLSearchParams({
+        chapterId,
+        projectId,
+        ...(prompt ? { promptSuggestion: prompt } : {}),
+        ...(wordCount ? { wordCountSuggestion: wordCount } : {}),
+      });
+      const url = `${API_BASE_URL}/chapters/generate/stream?${params.toString()}`;
+      const res = await fetch(url);
+      if (!res.body) throw new Error("无流式响应");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let acc = "";
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          acc += chunk;
+          setContent(prev => {
+            const next = prev + chunk;
+            countWords(next);
+            return next;
+          });
+        }
+        done = doneReading;
+      }
+    } catch (err) {
+      // 可选：错误处理
+      // setError(err.message || "生成失败")
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  // 监听 Esc 键退出全屏
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsFullscreen(false);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!isGenerating) return;
+    setTimeout(() => {
+      if (viewMode === "edit" && editorRef.current) {
+        editorRef.current.scrollTop = editorRef.current.scrollHeight;
+      } else if (viewMode === "preview" && editorContainerRef.current) {
+        editorContainerRef.current.scrollTo({ top: editorContainerRef.current.scrollHeight, behavior: 'smooth' });
+      }
+    }, 0);
+  }, [content, isGenerating, viewMode]);
+
   if (isLoading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
@@ -273,7 +340,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   }
 
   return (
-    <div className={`grid gap-6 ${isAiPanelOpen ? 'grid-cols-1 lg:grid-cols-[1fr_300px]' : 'grid-cols-1'}`}>
+    <div className={`grid gap-6 ${isAiPanelOpen ? 'grid-cols-1 lg:grid-cols-[1fr_300px]' : 'grid-cols-1'} ${isFullscreen ? 'fixed inset-0 z-[9999] bg-background rounded-none shadow-none !p-0' : ''}`}>
       <div className="flex flex-col rounded-lg border">
         <div className="flex items-center border-b p-3">
           <div className="flex-1">
@@ -313,6 +380,16 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               <option value={24}>超大（24px）</option>
             </select>
           </div>
+          {/* 全屏按钮 */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-2"
+            onClick={() => setIsFullscreen(f => !f)}
+            title={isFullscreen ? "退出全屏" : "全屏"}
+          >
+            {isFullscreen ? <IconMinimize className="h-4 w-4" /> : <IconMaximize className="h-4 w-4" />}
+          </Button>
           <div className="flex items-center gap-2 ml-2">
             <div className="flex border rounded-md overflow-hidden">
               <Button 
@@ -365,6 +442,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
             <div
               className="h-[75vh] p-4 overflow-auto prose prose-sm max-w-none"
               style={{ fontSize: fontSize, lineHeight: 1.8, textIndent: 24 }}
+              ref={editorContainerRef}
             >
               <MDPreview
                 source={content.replace(/^( {4})/gm, "")}
@@ -419,11 +497,55 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               <Button size="sm" className="mt-2 w-full">分析情感节奏</Button>
             </div>
             <div className="rounded-md bg-accent/50 p-3">
-              <h4 className="font-medium">情节生成</h4>
+              <h4 className="font-medium">内容生成</h4>
               <p className="mt-1 text-sm text-muted-foreground">
-                根据现有内容，自动生成后续情节发展建议。
+                根据现有内容，自动生成后续情节。
               </p>
-              <Button size="sm" className="mt-2 w-full">生成情节</Button>
+              <Button size="sm" className="mt-2 w-full" onClick={() => setShowGenOptions(true)}>生成内容</Button>
+              {showGenOptions && (
+                <div className="mt-3 space-y-2">
+                  <textarea
+                    className="w-full rounded border bg-background px-2 py-1 text-sm"
+                    rows={2}
+                    placeholder="可选：写作提示建议（如风格、情节方向等）"
+                    value={genPrompt}
+                    onChange={e => setGenPrompt(e.target.value)}
+                  />
+                  <input
+                    type="number"
+                    className="w-full rounded border bg-background px-2 py-1 text-sm"
+                    placeholder="可选：字数建议（如500）"
+                    value={genWordCount}
+                    onChange={e => setGenWordCount(e.target.value)}
+                    min={0}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        handleGenerateContent({ prompt: genPrompt, wordCount: genWordCount })
+                        setShowGenOptions(false)
+                        setGenPrompt("")
+                        setGenWordCount("")
+                      }}
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? "生成中..." : "确认生成"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setShowGenOptions(false)
+                        setGenPrompt("")
+                        setGenWordCount("")
+                      }}
+                    >
+                      取消
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="rounded-md bg-accent/50 p-3">
               <h4 className="font-medium">插入模板</h4>

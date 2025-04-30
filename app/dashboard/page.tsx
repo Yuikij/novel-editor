@@ -189,7 +189,7 @@ export default function DashboardPage() {
         <main className="w-full">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-            <Button className="flex items-center gap-2" onClick={handleOpenCreateModal}>
+            {/* <Button className="flex items-center gap-2" onClick={handleOpenCreateModal}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="16"
@@ -206,7 +206,7 @@ export default function DashboardPage() {
                 <path d="M5 12h14" />
               </svg>
               New Project
-            </Button>
+            </Button> */}
           </div>
           <div className="mt-6">
             <ProjectList onRefetch={fn => (projectListRef.current = fn)} onCreateNew={handleOpenCreateModal} />

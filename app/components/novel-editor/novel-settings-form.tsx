@@ -92,6 +92,7 @@ export default function NovelSettingsForm({
       title: project?.title || "",
       genre: project?.genre || "",
       style: project?.style || "",
+      type: project?.type || "",
       coverGradient: project?.coverGradient || ["#4f46e5", "#818cf8"],
       metadata: initialMetadata,
       worldId: project?.worldId || (worlds[0]?.id ?? "")
@@ -262,6 +263,7 @@ export default function NovelSettingsForm({
         title: form.title,
         genre: form.genre,
         style: form.style,
+        type: form.type,
         synopsis: metadataToSave.synopsis,
         tags: metadataToSave.tags,
         targetAudience: metadataToSave.targetAudience,
@@ -286,6 +288,7 @@ export default function NovelSettingsForm({
         title: saved.title,
         genre: saved.genre || '',
         style: saved.style || '',
+        type: saved.type || '',
         createdAt: saved.createdAt || new Date().toISOString(),
         updatedAt: saved.updatedAt || new Date().toISOString(),
         coverGradient: form.coverGradient,
@@ -317,6 +320,10 @@ export default function NovelSettingsForm({
   const styleOptions = [
     "轻松欢快", "虐心", "甜宠", "恐怖", "治愈", "搞笑", 
     "轻松", "正剧", "温馨", "励志", "黑暗", "其他"
+  ]
+
+  const typeOptions = [
+    "三幕式", "英雄之旅", "五幕式", "多线叙事", "框架结构", "循环结构", "弗雷塔格金字塔", "起承转合", "非线性"
   ]
 
   return (
@@ -428,37 +435,60 @@ export default function NovelSettingsForm({
             <label htmlFor="genre" className="block text-sm font-medium mb-1">
               小说类型 <span className="text-destructive">*</span>
             </label>
-            <select
+            <input
               id="genre"
               name="genre"
               required
+              list="genre-options"
               value={form.genre}
-              onChange={(e) => handleFormChange(e)}
+              onChange={handleFormChange}
               className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            >
-              <option value="" disabled>选择类型</option>
+              placeholder="选择或输入类型"
+            />
+            <datalist id="genre-options">
               {genreOptions.map(option => (
-                <option key={option} value={option}>{option}</option>
+                <option key={option} value={option} />
               ))}
-            </select>
+            </datalist>
             {!form.genre && <p className="mt-1 text-xs text-muted-foreground">选择类型后可使用 AI 取名</p>}
           </div>
           <div>
             <label htmlFor="style" className="block text-sm font-medium mb-1">
               写作风格
             </label>
-            <select
+            <input
               id="style"
               name="style"
+              list="style-options"
               value={form.style}
-              onChange={(e) => handleFormChange(e)}
+              onChange={handleFormChange}
               className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            >
-              <option value="">选择风格 (可选)</option>
+              placeholder="选择或输入风格 (可选)"
+            />
+            <datalist id="style-options">
               {styleOptions.map(option => (
-                <option key={option} value={option}>{option}</option>
+                <option key={option} value={option} />
               ))}
-            </select>
+            </datalist>
+          </div>
+          <div className="col-span-1 sm:col-span-2">
+            <label htmlFor="type" className="block text-sm font-medium mb-1">
+              结构类型
+            </label>
+            <input
+              id="type"
+              name="type"
+              list="type-options"
+              value={form.type}
+              onChange={handleFormChange}
+              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              placeholder="选择或输入结构类型 (可选)"
+            />
+            <datalist id="type-options">
+              {typeOptions.map(option => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
           </div>
         </div>
 

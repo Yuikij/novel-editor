@@ -176,7 +176,7 @@ export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (r
       )}
       {createModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[calc(100vh-32px)] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">新建项目</h2>
             <NovelSettingsForm
               onSave={handleCreateProject}

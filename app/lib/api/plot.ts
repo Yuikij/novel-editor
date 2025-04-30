@@ -10,6 +10,7 @@ export interface Plot {
   createdAt?: string
   updatedAt?: string
   chapterId?: string
+  characterIds?: string[]
 }
 
 function mapFromBackend(plot: any) {

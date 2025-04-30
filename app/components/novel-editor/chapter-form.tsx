@@ -18,7 +18,8 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
     status: chapter?.status || "draft",
     wordCount: chapter?.wordCount || 0,
     targetWordCount: chapter?.targetWordCount || undefined,
-    notes: chapter?.notes || ""
+    notes: chapter?.notes || "",
+    type: chapter?.type || "",
   })
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -41,6 +42,10 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
       onSave(form as Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>)
     }
   }
+
+  const typeOptions = [
+    "三幕式", "英雄之旅", "五幕式", "多线叙事", "框架结构", "循环结构", "弗雷塔格金字塔", "起承转合", "非线性"
+  ]
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -71,6 +76,23 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
               className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
+        </div>
+        <div>
+          <label htmlFor="type" className="block text-sm font-medium">结构类型</label>
+          <input
+            id="type"
+            name="type"
+            list="type-options"
+            value={form.type}
+            onChange={handleFormChange}
+            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            placeholder="选择或输入结构类型 (可选)"
+          />
+          <datalist id="type-options">
+            {typeOptions.map(option => (
+              <option key={option} value={option} />
+            ))}
+          </datalist>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
