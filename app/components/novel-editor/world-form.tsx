@@ -28,11 +28,14 @@ export default function WorldForm({
   )
   
   const [elementForm, setElementForm] = useState<Omit<WorldElement, "id">>({
-    type: "location",
+    type: "",
     name: "",
     description: "",
     details: ""
   })
+
+  // 世界元素类型选项（中文）
+  const worldElementTypeOptions = ["地点", "文化", "魔法", "科技", "历史", "种族", "宗教", "制度", "生态", "其他"];
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({
@@ -58,7 +61,7 @@ export default function WorldForm({
     
     setElements([...elements, newElement])
     setElementForm({
-      type: "location",
+      type: "",
       name: "",
       description: "",
       details: ""
@@ -130,20 +133,20 @@ export default function WorldForm({
                 <label htmlFor="elementType" className="block text-xs text-muted-foreground">
                   类型
                 </label>
-                <select
+                <input
                   id="elementType"
                   name="type"
+                  list="world-element-type-options"
                   value={elementForm.type}
                   onChange={handleElementFormChange}
                   className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="location">地点</option>
-                  <option value="culture">文化</option>
-                  <option value="magic">魔法</option>
-                  <option value="technology">科技</option>
-                  <option value="history">历史</option>
-                  <option value="other">其他</option>
-                </select>
+                  placeholder="选择或输入类型"
+                />
+                <datalist id="world-element-type-options">
+                  {worldElementTypeOptions.map(option => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label htmlFor="elementName" className="block text-xs text-muted-foreground">

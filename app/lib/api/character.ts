@@ -13,7 +13,7 @@ export interface Character {
   createdAt?: string
   updatedAt?: string
   age?: number
-  gender?: 'male' | 'female' | 'other'
+  gender?: string
   description?: string
 }
 

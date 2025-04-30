@@ -10,6 +10,7 @@ import dynamic from "next/dynamic"
 import "@uiw/react-md-editor/markdown-editor.css"
 import "@uiw/react-markdown-preview/markdown.css"
 import { API_BASE_URL } from "@/app/lib/config/env"
+import { toast } from 'react-hot-toast'
 
 // 动态导入 MDEditor 以避免 SSR 问题
 const MDEditor = dynamic(
@@ -494,7 +495,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               <p className="mt-1 text-sm text-muted-foreground">
                 分析当前章节的情感起伏和节奏变化，提供优化建议。
               </p>
-              <Button size="sm" className="mt-2 w-full">分析情感节奏</Button>
+              <Button size="sm" className="mt-2 w-full" onClick={() => toast('情感节奏功能开发中，敬请期待')}>分析情感节奏</Button>
             </div>
             <div className="rounded-md bg-accent/50 p-3">
               <h4 className="font-medium">内容生成</h4>

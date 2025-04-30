@@ -492,7 +492,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           <h1 className="text-2xl font-bold tracking-tight">{project.title}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleAnalysisClick}>
+          {/* <Button variant="outline" size="sm" onClick={handleAnalysisClick}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="16"
@@ -509,7 +509,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
             </svg>
             分析
           </Button>
-          <Button onClick={handleSave}>保存</Button>
+          <Button onClick={handleSave}>保存</Button> */}
         </div>
       </div>
       <div className="container mb-8 flex gap-4 rounded-lg border p-1">

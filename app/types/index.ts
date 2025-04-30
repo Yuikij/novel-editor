@@ -26,7 +26,7 @@ export interface NovelMetadata {
 export interface Character {
   id: string
   name: string
-  role: 'protagonist' | 'antagonist' | 'supporting' | 'minor'
+  role: string
   personality: string[]
   background: string
   goals: string[]
@@ -34,7 +34,7 @@ export interface Character {
   relationships: CharacterRelationship[]
   notes?: string
   age?: number
-  gender?: 'male' | 'female' | 'other'
+  gender?: string
   description?: string
 }
 
@@ -45,7 +45,7 @@ export interface CharacterRelationship {
   targetCharacterId: string
   characterId: string | null
   type: string | null
-  relationshipType: 'friend' | 'enemy' | 'love' | 'family' | 'rival' | 'mentor' | 'other' | null
+  relationshipType: string | null
   description: string
   createdAt?: string
   updatedAt?: string
@@ -62,7 +62,7 @@ export interface WorldBuilding {
 
 export interface WorldElement {
   id: string
-  type: 'location' | 'culture' | 'magic' | 'technology' | 'history' | 'other'
+  type: string
   name: string
   description: string
   details?: string

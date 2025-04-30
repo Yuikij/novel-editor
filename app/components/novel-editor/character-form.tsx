@@ -21,6 +21,11 @@ function sanitizeRelationships(relationships: CharacterRelationship[]) {
   return relationships.map(({ id, sourceCharacterId, ...rest }) => rest)
 }
 
+// 角色类型、性别、关系类型选项（中文）
+const roleOptions = ["主角", "反派", "配角", "次要角色", "路人", "龙套", "其他"];
+const genderOptions = ["男", "女", "其他"];
+const relationshipTypeOptions = ["朋友", "敌人", "恋人", "家人", "对手", "导师", "同事", "同学", "邻居", "其他"];
+
 export default function CharacterForm({
   character,
   onSave,
@@ -58,7 +63,7 @@ export default function CharacterForm({
     description: string
   }>({
     targetCharacterId: "",
-    relationshipType: "friend",
+    relationshipType: "朋友",
     description: ""
   })
 
@@ -118,7 +123,7 @@ export default function CharacterForm({
         updatedAt: undefined
       }
     ])
-    setRelationshipForm({ targetCharacterId: "", relationshipType: "friend", description: "" })
+    setRelationshipForm({ targetCharacterId: "", relationshipType: "朋友", description: "" })
   }
 
   const removeRelationship = (index: number) => {
@@ -164,21 +169,21 @@ export default function CharacterForm({
             />
           </div>
           <div>
-            <label htmlFor="role" className="block text-sm font-medium">
-              角色类型
-            </label>
-            <select
+            <label htmlFor="role" className="block text-sm font-medium">角色类型</label>
+            <input
               id="role"
               name="role"
+              list="role-options"
               value={form.role}
               onChange={handleFormChange}
               className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="protagonist">主角</option>
-              <option value="antagonist">反派</option>
-              <option value="supporting">配角</option>
-              <option value="minor">次要角色</option>
-            </select>
+              placeholder="选择或输入角色类型"
+            />
+            <datalist id="role-options">
+              {roleOptions.map(option => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
           </div>
           <div>
             <label htmlFor="age" className="block text-sm font-medium">年龄</label>
@@ -195,17 +200,20 @@ export default function CharacterForm({
           </div>
           <div>
             <label htmlFor="gender" className="block text-sm font-medium">性别</label>
-            <select
+            <input
               id="gender"
               name="gender"
+              list="gender-options"
               value={form.gender}
               onChange={handleFormChange}
               className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="male">男</option>
-              <option value="female">女</option>
-              <option value="other">其他</option>
-            </select>
+              placeholder="选择或输入性别"
+            />
+            <datalist id="gender-options">
+              {genderOptions.map(option => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
           </div>
         </div>
 
@@ -311,23 +319,20 @@ export default function CharacterForm({
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="relationshipType" className="block text-xs text-muted-foreground">
-                    关系类型
-                  </label>
-                  <select
+                  <label htmlFor="relationshipType" className="block text-xs text-muted-foreground">关系类型</label>
+                  <input
                     id="relationshipType"
+                    list="relationship-type-options"
                     value={relationshipForm.relationshipType}
-                    onChange={(e) => setRelationshipForm({ ...relationshipForm, relationshipType: e.target.value as Exclude<CharacterRelationship["relationshipType"], null> })}
+                    onChange={e => setRelationshipForm({ ...relationshipForm, relationshipType: e.target.value })}
                     className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-                  >
-                    <option value="friend">友人</option>
-                    <option value="enemy">敌人</option>
-                    <option value="love">恋人</option>
-                    <option value="family">家人</option>
-                    <option value="rival">竞争对手</option>
-                    <option value="mentor">导师</option>
-                    <option value="other">其他</option>
-                  </select>
+                    placeholder="选择或输入关系类型"
+                  />
+                  <datalist id="relationship-type-options">
+                    {relationshipTypeOptions.map(option => (
+                      <option key={option} value={option} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label htmlFor="relationshipDescription" className="block text-xs text-muted-foreground">
