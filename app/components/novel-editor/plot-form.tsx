@@ -18,10 +18,11 @@ export const plotSchema = z.object({
   title: z.string().min(1, "标题不能为空"),
   description: z.string().optional(),
   position: z.number().min(1),
-  status: z.enum(["planned", "drafted", "completed"]),
+  status: z.string().min(1, "状态不能为空"),
   chapterId: z.string().optional(),
   characterIds: z.array(z.string()).optional(),
   type: z.string().optional(),
+  completionPercentage: z.number().min(0).max(100).optional(),
 })
 
 export default function PlotForm({
@@ -43,14 +44,19 @@ export default function PlotForm({
     title: plot?.title || "",
     description: plot?.description || "",
     position: plot?.position || 1,
-    status: plot?.status || "planned",
+    status: plot?.status || "未开始",
     chapterId: plot?.chapterId || (chapters[0]?.id ?? ""),
     characterIds: plot?.characterIds || [],
     type: plot?.type || "",
+    completionPercentage: plot?.completionPercentage || 0,
   })
 
   const typeOptions = [
     "三幕式", "英雄之旅", "五幕式", "多线叙事", "框架结构", "循环结构", "弗雷塔格金字塔", "起承转合", "非线性"
+  ]
+
+  const statusOptions = [
+    "未开始", "进行中", "已完成", "已暂停", "待修改", "已修改"
   ]
 
   // 获取角色列表
@@ -181,7 +187,7 @@ export default function PlotForm({
             placeholder="情节描述..."
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label htmlFor="position" className="block text-sm font-medium">
               顺序
@@ -200,17 +206,37 @@ export default function PlotForm({
             <label htmlFor="status" className="block text-sm font-medium">
               状态
             </label>
-            <select
+            <input
               id="status"
               name="status"
+              list="status-options"
               value={form.status}
               onChange={handleFormChange}
               className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="planned">计划中</option>
-              <option value="drafted">已起草</option>
-              <option value="completed">已完成</option>
-            </select>
+              placeholder="选择或输入状态"
+              required
+            />
+            <datalist id="status-options">
+              {statusOptions.map(option => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label htmlFor="completionPercentage" className="block text-sm font-medium">
+              完成百分比
+            </label>
+            <input
+              id="completionPercentage"
+              name="completionPercentage"
+              type="number"
+              min="0"
+              max="100"
+              value={form.completionPercentage}
+              onChange={handleFormChange}
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <div className="text-xs text-muted-foreground mt-1">0-100</div>
           </div>
         </div>
       </div>

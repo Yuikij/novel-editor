@@ -99,9 +99,10 @@ export interface PlotElement {
   description: string
   position: number
   chapterId?: string
-  status: 'planned' | 'drafted' | 'completed'
+  status: string
   characterIds?: string[]
   type?: string
+  completionPercentage?: number
 }
 
 // Analysis Types
