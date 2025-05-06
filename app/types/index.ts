@@ -103,6 +103,7 @@ export interface PlotElement {
   characterIds?: string[]
   type?: string
   completionPercentage?: number
+  wordCountGoal?: number
 }
 
 // Analysis Types

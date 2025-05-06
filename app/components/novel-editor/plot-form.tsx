@@ -23,6 +23,7 @@ export const plotSchema = z.object({
   characterIds: z.array(z.string()).optional(),
   type: z.string().optional(),
   completionPercentage: z.number().min(0).max(100).optional(),
+  wordCountGoal: z.number().min(0).optional(),
 })
 
 export default function PlotForm({
@@ -49,6 +50,7 @@ export default function PlotForm({
     characterIds: plot?.characterIds || [],
     type: plot?.type || "",
     completionPercentage: plot?.completionPercentage || 0,
+    wordCountGoal: plot?.wordCountGoal || 0,
   })
 
   const typeOptions = [
@@ -238,6 +240,22 @@ export default function PlotForm({
             />
             <div className="text-xs text-muted-foreground mt-1">0-100</div>
           </div>
+        </div>
+        <div>
+          <label htmlFor="wordCountGoal" className="block text-sm font-medium">
+            字数目标
+          </label>
+          <input
+            id="wordCountGoal"
+            name="wordCountGoal"
+            type="number"
+            min="0"
+            value={form.wordCountGoal}
+            onChange={handleFormChange}
+            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            placeholder="目标字数 (可选)"
+          />
+          <div className="text-xs text-muted-foreground mt-1">情节的目标字数</div>
         </div>
       </div>
       <div className="flex justify-end gap-2">
