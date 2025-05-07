@@ -82,4 +82,25 @@ export async function deleteOutlinePlotPoint(id: string) {
     method: 'DELETE' })
   if (!res.ok) throw new Error('大纲情节点删除失败')
   return true
+}
+
+// 批量删除大纲情节点
+export async function batchDeleteOutlinePlotPoints(ids: string[]) {
+  const res = await fetch(`${API_BASE_URL}/outline-plot-points/batch`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(ids),
+  })
+  if (!res.ok) throw new Error('大纲情节点批量删除失败')
+  return true
+}
+
+// 自动扩展大纲情节点到目标数量
+export async function autoExpandOutlinePlotPoints(projectId: string, targetCount: number = 12) {
+  const res = await fetch(`${API_BASE_URL}/outline-plot-points/auto-expand/${projectId}?targetCount=${targetCount}`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error('大纲情节点自动扩展失败')
+  const data = await res.json()
+  return data.data.map(mapFromBackend)
 } 

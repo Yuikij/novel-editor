@@ -102,6 +102,27 @@ export async function deleteChapter(id: string) {
   return true
 }
 
+// 批量删除章节
+export async function batchDeleteChapters(ids: string[]) {
+  const res = await fetch(`${API_BASE_URL}/chapters/batch`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(ids),
+  })
+  if (!res.ok) throw new Error('章节批量删除失败')
+  return true
+}
+
+// 自动扩展章节到目标数量
+export async function autoExpandChapters(projectId: string, targetCount: number = 12) {
+  const res = await fetch(`${API_BASE_URL}/chapters/auto-expand/${projectId}?targetCount=${targetCount}`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error('章节自动扩展失败')
+  const data = await res.json()
+  return data.data.map(mapFromBackend)
+}
+
 // 获取项目下所有章节
 export async function fetchChaptersByProject(projectId: string) {
   const res = await fetch(`${API_BASE_URL}/chapters/project/${projectId}`)
