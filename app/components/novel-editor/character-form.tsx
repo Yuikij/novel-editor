@@ -39,14 +39,14 @@ export default function CharacterForm({
     Omit<Character, "id" | "relationships" | "age"> & { age: string }
   >({
     name: character?.name || "",
-    role: character?.role || "supporting",
+    role: character?.role || "",
     personality: character?.personality || [],
     background: character?.background || "",
     goals: character?.goals || [],
     imageUrl: character?.imageUrl || "",
     notes: character?.notes || "",
     age: character?.age !== undefined && character?.age !== null ? String(character.age) : "",
-    gender: character?.gender || "other",
+    gender: character?.gender || "",
     description: character?.description || ""
   })
   
