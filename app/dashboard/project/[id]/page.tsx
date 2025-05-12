@@ -18,10 +18,11 @@ import ChapterForm from "@/app/components/novel-editor/chapter-form"
 import OutlineForm, { OutlineNode } from "@/app/components/novel-editor/outline-form"
 import OutlineAutoExpand from "@/app/components/novel-editor/outline-auto-expand"
 import ChapterAutoExpand from "@/app/components/novel-editor/chapter-auto-expand"
+import PlotAutoExpand from "@/app/components/novel-editor/plot-auto-expand"
 import { fetchProject, Project } from "@/app/lib/api/project"
 import { fetchChaptersPage, createChapter, updateChapter, deleteChapter, batchDeleteChapters, autoExpandChapters } from '@/app/lib/api/chapter'
 import { fetchCharactersByProject, createCharacter, updateCharacter, deleteCharacter as deleteCharacterApi } from '@/app/lib/api/character'
-import { deletePlot, fetchPlotsPage, createPlot, updatePlot } from '@/app/lib/api/plot'
+import { deletePlot, fetchPlotsPage, createPlot, updatePlot, batchDeletePlots, autoExpandPlots } from '@/app/lib/api/plot'
 import { fetchOutlinePlotPointsPage, createOutlinePlotPoint, updateOutlinePlotPoint, deleteOutlinePlotPoint, autoExpandOutlinePlotPoints, batchDeleteOutlinePlotPoints } from '@/app/lib/api/outline-plot-point'
 import { fetchCharacter } from '@/app/lib/api/character'
 import { toast } from 'react-hot-toast'
@@ -83,6 +84,14 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   }>({ isOpen: false })
   const [batchDeleteChapterState, setBatchDeleteChapterState] = useState<{
     isOpen: boolean;
+  }>({ isOpen: false })
+  const [selectedPlots, setSelectedPlots] = useState<string[]>([])
+  const [batchDeletePlotState, setBatchDeletePlotState] = useState<{
+    isOpen: boolean;
+  }>({ isOpen: false })
+  const [plotAutoExpandState, setPlotAutoExpandState] = useState<{
+    isOpen: boolean;
+    chapterId?: string;
   }>({ isOpen: false })
 
   useEffect(() => {
@@ -269,6 +278,52 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       setPlotsError(err.message || '删除情节失败')
     } finally {
       setIsPlotsLoading(false)
+    }
+  }
+
+  // 批量删除情节处理程序
+  const handleBatchDeletePlotConfirm = async () => {
+    if (selectedPlots.length === 0) return
+    
+    setIsPlotsLoading(true)
+    setPlotsError(null)
+    try {
+      await batchDeletePlots(selectedPlots)
+      await fetchPlots()
+      setBatchDeletePlotState({ isOpen: false })
+      setSelectedPlots([])
+    } catch (err: any) {
+      setPlotsError(err.message || '批量删除情节失败')
+    } finally {
+      setIsPlotsLoading(false)
+    }
+  }
+
+  const handleBatchDeletePlotCancel = () => {
+    setBatchDeletePlotState({ isOpen: false })
+  }
+
+  const handleOpenBatchDeletePlot = () => {
+    if (selectedPlots.length === 0) {
+      toast.error('请先选择要删除的情节')
+      return
+    }
+    setBatchDeletePlotState({ isOpen: true })
+  }
+
+  const toggleSelectPlot = (id: string) => {
+    setSelectedPlots(prev => 
+      prev.includes(id) 
+        ? prev.filter(pid => pid !== id) 
+        : [...prev, id]
+    )
+  }
+
+  const toggleSelectAllPlots = (checked: boolean) => {
+    if (checked) {
+      setSelectedPlots(plots.map(p => p.id || '').filter(id => id !== ''))
+    } else {
+      setSelectedPlots([])
     }
   }
 
@@ -613,6 +668,31 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     } else {
       setSelectedChapters([])
     }
+  }
+
+  // 情节自动扩展处理函数
+  const handleAutoExpandPlot = async (targetCount: number) => {
+    if (!plotAutoExpandState.chapterId) return
+    
+    setIsPlotsLoading(true)
+    setPlotsError(null)
+    try {
+      await autoExpandPlots(plotAutoExpandState.chapterId, targetCount)
+      await fetchPlots()
+      setPlotAutoExpandState({ isOpen: false })
+    } catch (err: any) {
+      setPlotsError(err.message || '情节自动扩展失败')
+    } finally {
+      setIsPlotsLoading(false)
+    }
+  }
+
+  const handleOpenPlotAutoExpand = (chapterId: string) => {
+    setPlotAutoExpandState({ isOpen: true, chapterId })
+  }
+
+  const handleCancelPlotAutoExpand = () => {
+    setPlotAutoExpandState({ isOpen: false })
   }
 
   if (isLoading) return <div className="p-8 text-center">加载中...</div>
@@ -976,33 +1056,87 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           <div className="rounded-lg border p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">情节管理</h2>
-              <Button onClick={handleAddPlot}>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="mr-1 h-4 w-4"
-                >
-                  <path d="M12 5v14" />
-                  <path d="M5 12h14" />
-                </svg>
-                添加情节
-              </Button>
+              <div className="flex gap-2">
+                {selectedPlots.length > 0 && (
+                  <Button variant="destructive" onClick={handleOpenBatchDeletePlot} disabled={isPlotsLoading}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="mr-1 h-4 w-4"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                    </svg>
+                    批量删除 ({selectedPlots.length})
+                  </Button>
+                )}
+                <Button onClick={handleAddPlot}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="mr-1 h-4 w-4"
+                  >
+                    <path d="M12 5v14" />
+                    <path d="M5 12h14" />
+                  </svg>
+                  添加情节
+                </Button>
+              </div>
             </div>
             {chapters.map((chapter) => (
               <div key={chapter.id} className="mb-6">
                 <h3 className="text-lg font-semibold mb-2">{chapter.title}</h3>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-muted-foreground">
+                    {plots.filter(p => p.chapterId === chapter.id).length} 个情节
+                  </span>
+                  <Button variant="outline" size="sm" onClick={() => handleOpenPlotAutoExpand(chapter.id)}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="mr-1 h-4 w-4"
+                    >
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                    自动扩展情节
+                  </Button>
+                </div>
                 <div className="space-y-4">
                   {plots.filter(p => p.chapterId === chapter.id).map((plot) => (
                     <div key={plot.id} className="border rounded-md p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold">{plot.title}</span>
+                        <div className="flex items-center gap-2">
+                          <Checkbox 
+                            id={`plot-${plot.id}`}
+                            checked={selectedPlots.includes(plot.id || '')}
+                            onCheckedChange={() => plot.id && toggleSelectPlot(plot.id)}
+                          />
+                          <span className="font-semibold">{plot.title}</span>
+                        </div>
                         <span className="text-xs rounded-full bg-muted px-2 py-0.5">{plot.status}</span>
                       </div>
                       <p className="text-sm text-muted-foreground mb-2">{plot.description}</p>
@@ -1225,6 +1359,20 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       )}
+      {batchDeletePlotState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg">
+            <h2 className="mb-2 text-xl font-bold">批量删除情节</h2>
+            <p className="mb-4 text-muted-foreground">
+              确定要删除选中的 {selectedPlots.length} 个情节吗？此操作不可撤销。
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleBatchDeletePlotCancel}>取消</Button>
+              <Button variant="destructive" onClick={handleBatchDeletePlotConfirm}>删除</Button>
+            </div>
+          </div>
+        </div>
+      )}
       {outlineModalState.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg max-h-[calc(100vh-32px)] overflow-y-auto">
@@ -1330,6 +1478,18 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               <Button variant="outline" onClick={handleBatchDeleteChapterCancel}>取消</Button>
               <Button variant="destructive" onClick={handleBatchDeleteChapterConfirm}>删除</Button>
             </div>
+          </div>
+        </div>
+      )}
+      {plotAutoExpandState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg">
+            <PlotAutoExpand
+              onSubmit={handleAutoExpandPlot}
+              onCancel={handleCancelPlotAutoExpand}
+              currentCount={plots.filter(p => p.chapterId === plotAutoExpandState.chapterId).length}
+              isLoading={isPlotsLoading}
+            />
           </div>
         </div>
       )}

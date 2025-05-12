@@ -86,4 +86,25 @@ export async function deletePlot(id: string) {
     method: 'DELETE' })
   if (!res.ok) throw new Error('情节删除失败')
   return true
+}
+
+// 批量删除情节
+export async function batchDeletePlots(ids: string[]) {
+  const res = await fetch(`${API_BASE_URL}/plots/batch`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(ids),
+  })
+  if (!res.ok) throw new Error('情节批量删除失败')
+  return true
+}
+
+// 自动扩展情节到目标数量
+export async function autoExpandPlots(chapterId: string, targetCount: number = 5) {
+  const res = await fetch(`${API_BASE_URL}/plots/auto-expand/${chapterId}?targetCount=${targetCount}`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error('情节自动扩展失败')
+  const data = await res.json()
+  return data.data.map(mapFromBackend)
 } 

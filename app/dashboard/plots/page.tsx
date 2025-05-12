@@ -9,7 +9,7 @@ import { Button } from "@/app/components/ui/button"
 import PlotForm from "@/app/components/novel-editor/plot-form"
 import type { Plot } from "@/app/lib/api/plot"
 import type { PlotElement } from "@/app/types"
-import { fetchPlotsPage, createPlot, updatePlot, deletePlot } from "@/app/lib/api/plot"
+import { fetchPlotsPage, createPlot, updatePlot, deletePlot, batchDeletePlots, autoExpandPlots } from "@/app/lib/api/plot"
 
 // Helper to map Plot to PlotElement
 function mapPlotToPlotElement(plot?: Plot): PlotElement | undefined {
@@ -26,16 +26,19 @@ function mapPlotToPlotElement(plot?: Plot): PlotElement | undefined {
 
 export default function PlotsPage() {
   const [plots, setPlots] = useState<Plot[]>([])
-  const [modalState, setModalState] = useState<{
-    isOpen: boolean;
-    mode: "add" | "edit" | "delete";
-    plot?: Plot;
-  }>({
-    isOpen: false,
-    mode: "add"
-  })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean
+    mode: "add" | "edit" | "delete"
+    plot?: Plot
+  }>({ isOpen: false, mode: "add" })
+  
+  // 批量删除相关状态
+  const [selectedPlots, setSelectedPlots] = useState<string[]>([])
+  const [batchDeleteState, setBatchDeleteState] = useState<{
+    isOpen: boolean
+  }>({ isOpen: false })
 
   const fetchList = async () => {
     setIsLoading(true)
@@ -87,15 +90,59 @@ export default function PlotsPage() {
   const handleConfirmDelete = async () => {
     if (!modalState.plot) return
     setIsLoading(true)
-    setError(null)
     try {
       await deletePlot(modalState.plot.id)
       await fetchList()
       setModalState({ isOpen: false, mode: "add" })
     } catch (err: any) {
-      setError(err.message || "删除失败")
+      setError(err.message || "删除情节失败")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  // 批量删除处理程序
+  const handleBatchDeleteConfirm = async () => {
+    if (selectedPlots.length === 0) return
+    
+    setIsLoading(true)
+    try {
+      await batchDeletePlots(selectedPlots)
+      await fetchList()
+      setBatchDeleteState({ isOpen: false })
+      setSelectedPlots([])
+    } catch (err: any) {
+      setError(err.message || '批量删除情节失败')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleBatchDeleteCancel = () => {
+    setBatchDeleteState({ isOpen: false })
+  }
+
+  const handleOpenBatchDelete = () => {
+    if (selectedPlots.length === 0) {
+      alert('请先选择要删除的情节')
+      return
+    }
+    setBatchDeleteState({ isOpen: true })
+  }
+
+  const toggleSelectPlot = (id: string) => {
+    setSelectedPlots(prev => 
+      prev.includes(id) 
+        ? prev.filter(pid => pid !== id) 
+        : [...prev, id]
+    )
+  }
+
+  const toggleSelectAllPlots = (checked: boolean) => {
+    if (checked) {
+      setSelectedPlots(plots.map(p => p.id))
+    } else {
+      setSelectedPlots([])
     }
   }
 
@@ -230,24 +277,47 @@ export default function PlotsPage() {
             <h1 className="text-2xl font-bold tracking-tight">
               Story Outline
             </h1>
-            <Button onClick={handleAddPlot} className="flex items-center gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4"
-              >
-                <path d="M12 5v14" />
-                <path d="M5 12h14" />
-              </svg>
-              New Plot Line
-            </Button>
+            <div className="flex gap-2">
+              {selectedPlots.length > 0 && (
+                <Button variant="destructive" onClick={handleOpenBatchDelete} disabled={isLoading} className="flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-4 w-4"
+                  >
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  </svg>
+                  批量删除 ({selectedPlots.length})
+                </Button>
+              )}
+              <Button onClick={handleAddPlot} className="flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                >
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                New Plot Line
+              </Button>
+            </div>
           </div>
 
           <div className="mt-6 space-y-6">
@@ -260,7 +330,18 @@ export default function PlotsPage() {
                   className="flex flex-col rounded-lg border bg-card transition-all hover:shadow-md"
                 >
                   <div className="flex-1 p-4">
-                    <h3 className="text-xl font-semibold">{plot.title}</h3>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <input
+                          type="checkbox"
+                          id={`select-plot-${plot.id}`}
+                          checked={selectedPlots.includes(plot.id)}
+                          onChange={() => toggleSelectPlot(plot.id)}
+                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/80"
+                        />
+                      </div>
+                      <h3 className="text-xl font-semibold">{plot.title}</h3>
+                    </div>
                     <div className="mt-2 text-sm text-muted-foreground">{plot.description}</div>
                     <div className="mt-2 text-xs text-muted-foreground">类型: {plot.type ?? '-'}</div>
                   </div>
@@ -334,6 +415,21 @@ export default function PlotsPage() {
               >
                 Delete
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {batchDeleteState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg">
+            <h2 className="mb-2 text-xl font-bold">批量删除情节</h2>
+            <p className="mb-4 text-muted-foreground">
+              确定要删除选中的 {selectedPlots.length} 个情节吗？此操作不可撤销。
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleBatchDeleteCancel}>取消</Button>
+              <Button variant="destructive" onClick={handleBatchDeleteConfirm}>删除</Button>
             </div>
           </div>
         </div>
