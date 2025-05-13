@@ -830,8 +830,14 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                     {chapters.find(c => c.id === activeChapterId)?.title || "请选择章节"}
                   </span>
                 </div>
-                {/* <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" className="h-8">
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    onClick={() => fetchChapters()}
+                    disabled={isLoading}
+                  >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -842,13 +848,15 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="mr-1 h-4 w-4"
                     >
-                      <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                      <path d="M21 2v6h-6" />
+                      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                      <path d="M3 22v-6h6" />
+                      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
                     </svg>
-                    保存章节
+                    <span className="sr-only">刷新</span>
                   </Button>
-                </div> */}
+                </div>
               </div>
               <NovelEditor projectId={params.id} chapterId={activeChapterId} />
             </div>
@@ -857,7 +865,34 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         {activeTab === "chapter" && (
           <div className="rounded-lg border p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">章节管理</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold">章节管理</h2>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 w-8 p-0"
+                  onClick={() => fetchChapters()}
+                  disabled={isLoading}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 2v6h-6" />
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                    <path d="M3 22v-6h6" />
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                  </svg>
+                  <span className="sr-only">刷新</span>
+                </Button>
+              </div>
               <div className="flex gap-2">
                 {selectedChapters.length > 0 && (
                   <Button variant="destructive" onClick={handleOpenBatchDeleteChapter} disabled={isLoading}>
@@ -1008,7 +1043,34 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         {activeTab === "characters" && (
           <div className="rounded-lg border p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">角色管理</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold">角色管理</h2>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 w-8 p-0"
+                  onClick={() => fetchCharacters()}
+                  disabled={isCharactersLoading}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 2v6h-6" />
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                    <path d="M3 22v-6h6" />
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                  </svg>
+                  <span className="sr-only">刷新</span>
+                </Button>
+              </div>
               <Button onClick={handleAddCharacter}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1055,7 +1117,34 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         {activeTab === "plots" && (
           <div className="rounded-lg border p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">情节管理</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold">情节管理</h2>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 w-8 p-0"
+                  onClick={() => fetchPlots()}
+                  disabled={isPlotsLoading}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 2v6h-6" />
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                    <path d="M3 22v-6h6" />
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                  </svg>
+                  <span className="sr-only">刷新</span>
+                </Button>
+              </div>
               <div className="flex gap-2">
                 {selectedPlots.length > 0 && (
                   <Button variant="destructive" onClick={handleOpenBatchDeletePlot} disabled={isPlotsLoading}>
@@ -1159,7 +1248,34 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         {activeTab === "outline" && (
           <div className="rounded-lg border p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">故事大纲</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold">故事大纲</h2>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 w-8 p-0"
+                  onClick={() => fetchOutlines()}
+                  disabled={isOutlinesLoading}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 2v6h-6" />
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                    <path d="M3 22v-6h6" />
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                  </svg>
+                  <span className="sr-only">刷新</span>
+                </Button>
+              </div>
               <div className="flex gap-2">
                 {selectedOutlines.length > 0 && (
                   <Button variant="destructive" onClick={handleOpenBatchDelete} disabled={isOutlinesLoading}>
