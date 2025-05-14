@@ -54,6 +54,29 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const [generationProgress, setGenerationProgress] = useState(0)
   const editorContainerRef = useRef<HTMLDivElement | null>(null)
   const [pollingTimestamp, setPollingTimestamp] = useState<number>(0)
+  const [lastGeneratedContentId, setLastGeneratedContentId] = useState<string>("")
+
+  // 通知后端内容已消费完成
+  const notifyContentConsumed = async (planId: string) => {
+    try {
+      const notifyUrl = `${API_BASE_URL}/chapters/generate/content/completed?planId=${planId}`;
+      console.log('Notifying content consumed, URL:', notifyUrl);
+      const response = await fetch(notifyUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        console.error(`通知内容消费完成失败: ${response.status}`);
+      } else {
+        console.log('Content consumption notification successful');
+      }
+    } catch (error) {
+      console.error('Error notifying content consumption:', error);
+    }
+  };
 
   // 加载章节内容
   useEffect(() => {
@@ -247,6 +270,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
     console.log('Start content generation process');
     setIsGenerating(true);
     setGenerationProgress(0);
+    setLastGeneratedContentId(""); // 重置上一次生成的内容ID
     
     try {
       const params = new URLSearchParams({
@@ -357,6 +381,95 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               break;
             case 2:
               console.log('Generating content');
+              
+              // 当状态为2(生成中)时，调用content接口获取已生成的内容片段
+              if (progressData.data?.hasContent) {
+                console.log('Has partial content available, fetching content');
+                
+                // 检查是否有唯一标识符，避免重复获取相同内容
+                const contentId = progressData.data?.contentId || '';
+                
+                // 如果已经获取过这部分内容，则跳过
+                if (contentId && contentId === lastGeneratedContentId) {
+                  console.log('Already fetched this content batch, skipping');
+                  break;
+                }
+                
+                try {
+                  // 获取生成中的内容片段
+                  const contentUrl = `${API_BASE_URL}/chapters/generate/content?planId=${planId}`;
+                  console.log('Fetching partial content, URL:', contentUrl);
+                  const contentRes = await fetch(contentUrl);
+                  
+                  if (!contentRes.ok) {
+                    console.error(`获取部分内容失败: ${contentRes.status}`);
+                    break;
+                  }
+                  
+                  const contentType = contentRes.headers.get('content-type');
+                  
+                  // 如果是JSON响应，直接解析
+                  if (contentType && contentType.includes('application/json')) {
+                    console.log('Processing JSON content response');
+                    const contentData = await contentRes.json();
+                    console.log('Content data:', contentData);
+                    if (contentData.code !== 200 || !contentData.data) {
+                      throw new Error("获取内容失败: " + (contentData.message || "未知错误"));
+                    }
+                    
+                    const generatedContent = contentData.data;
+                    console.log('Generated content length:', generatedContent.length);
+                    setContent(prev => {
+                      const next = prev + generatedContent;
+                      countWords(next);
+                      return next;
+                    });
+                    
+                    toast.success("内容生成完成");
+                    
+                    // 通知后端已完成内容消费
+                    await notifyContentConsumed(planId);
+                  } 
+                  // 流式响应处理
+                  else if (contentRes.body) {
+                    console.log('Processing stream content response for partial content');
+                    const reader = contentRes.body.getReader();
+                    const decoder = new TextDecoder();
+                    let done = false;
+                    let partialChunk = "";
+                    
+                    while (!done) {
+                      const { value, done: doneReading } = await reader.read();
+                      if (value) {
+                        const chunk = decoder.decode(value, { stream: true });
+                        partialChunk += chunk;
+                        console.log('Received partial content chunk, length:', chunk.length);
+                      }
+                      done = doneReading;
+                    }
+                    
+                    if (partialChunk) {
+                      setContent(prev => {
+                        const next = prev + partialChunk;
+                        countWords(next);
+                        return next;
+                      });
+                      
+                      // 保存最后获取的内容ID，避免重复添加
+                      if (contentId) {
+                        setLastGeneratedContentId(contentId);
+                      }
+                      
+                      toast.success("已获取部分生成内容");
+                      
+                      // 通知后端已完成内容消费
+                      await notifyContentConsumed(planId);
+                    }
+                  }
+                } catch (partialError) {
+                  console.error('Error fetching partial content:', partialError);
+                }
+              }
               break;
             case 3:
               console.log('Generation completed, stopping polling');
@@ -364,6 +477,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               localStorage.removeItem('generation_polling_active');
               localStorage.removeItem('current_generation_plan_id');
               setPollingTimestamp(0); // 重置时间戳
+              setLastGeneratedContentId(""); // 重置内容ID
               
               // 设置进度为100%
               setGenerationProgress(100);
@@ -401,8 +515,12 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                 });
                 
                 toast.success("内容生成完成");
+                
+                // 通知后端已完成内容消费
+                await notifyContentConsumed(planId);
+                
                 setIsGenerating(false);
-                return;
+                break;
               }
               
               // 流式响应处理
@@ -434,6 +552,10 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               // 内容流式输出完成
               console.log('Stream content complete');
               toast.success("内容生成完成");
+              
+              // 通知后端已完成内容消费
+              await notifyContentConsumed(planId);
+              
               setIsGenerating(false);
               break;
             default:
@@ -444,6 +566,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                 localStorage.removeItem('generation_polling_active');
                 localStorage.removeItem('current_generation_plan_id');
                 setPollingTimestamp(0);
+                setLastGeneratedContentId(""); // 重置内容ID
                 const errorMessage = progressData.data?.message || "未知错误";
                 toast.error(`生成过程异常: ${errorMessage}`);
                 setIsGenerating(false);
@@ -461,6 +584,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         localStorage.removeItem('generation_polling_active');
         localStorage.removeItem('current_generation_plan_id');
         setPollingTimestamp(0); // 重置时间戳
+        setLastGeneratedContentId(""); // 重置内容ID
         setIsGenerating(false);
       }
     };
@@ -482,6 +606,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
       clearInterval(intervalId);
       // 重置时间戳但不清除状态，让状态由业务逻辑处理
       setPollingTimestamp(0);
+      setLastGeneratedContentId(""); // 重置内容ID
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGenerating, pollingTimestamp]);
@@ -513,6 +638,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
       // 组件卸载时清除生成状态
       localStorage.removeItem('current_generation_plan_id');
       localStorage.removeItem('generation_polling_active');
+      setLastGeneratedContentId(""); // 重置内容ID
     };
   }, []);
 
