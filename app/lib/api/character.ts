@@ -98,4 +98,16 @@ export async function fetchCharactersByProject(projectId: string) {
   if (!res.ok) throw new Error('获取项目角色失败')
   const data = await res.json()
   return data.data.map(mapFromBackend)
+}
+
+// 使用LLM生成完整的角色信息
+export async function generateCharacterInfo(character: Partial<Character>) {
+  const res = await fetch(`${API_BASE_URL}/characters/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(character),
+  })
+  if (!res.ok) throw new Error('角色信息生成失败')
+  const data = await res.json()
+  return mapFromBackend(data.data)
 } 

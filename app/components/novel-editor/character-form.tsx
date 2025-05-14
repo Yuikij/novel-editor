@@ -3,6 +3,14 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/app/components/ui/button"
 import type { Character, CharacterRelationship } from "@/app/types"
+import { generateCharacterInfo } from "@/app/lib/api/character"
+import { Loader2 } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/app/components/ui/tooltip"
 
 interface CharacterFormProps {
   character?: Character
@@ -55,6 +63,7 @@ export default function CharacterForm({
   const [relationships, setRelationships] = useState<CharacterRelationship[]>(
     character?.relationships || []
   )
+  const [isGenerating, setIsGenerating] = useState(false)
   const characterIdForRelationship = character?.id || `temp-${Date.now()}`
   const projectIdForRelationship = projectId
   const [relationshipForm, setRelationshipForm] = useState<{
@@ -130,6 +139,54 @@ export default function CharacterForm({
     setRelationships(relationships.filter((_, i) => i !== index))
   }
 
+  const handleGenerate = async () => {
+    try {
+      setIsGenerating(true)
+      // 准备要发送的角色数据
+      const characterData = {
+        id: character?.id,
+        projectId,
+        name: form.name,
+        description: form.description,
+        role: form.role,
+        gender: form.gender,
+        age: form.age ? Number(form.age) : undefined,
+        personality: form.personality,
+        goals: form.goals,
+        background: form.background,
+        notes: form.notes,
+        relationships: relationships
+      }
+      
+      // 调用API生成角色信息
+      const generatedCharacter = await generateCharacterInfo(characterData)
+      
+      // 更新表单状态
+      setForm({
+        name: generatedCharacter.name || form.name,
+        description: generatedCharacter.description || form.description,
+        role: generatedCharacter.role || form.role,
+        gender: generatedCharacter.gender || form.gender,
+        age: generatedCharacter.age !== undefined ? String(generatedCharacter.age) : form.age,
+        personality: generatedCharacter.personality || form.personality,
+        goals: generatedCharacter.goals || form.goals,
+        background: generatedCharacter.background || form.background,
+        notes: generatedCharacter.notes || form.notes,
+        imageUrl: generatedCharacter.imageUrl || form.imageUrl
+      })
+      
+      // 如果有生成的关系数据，更新关系
+      if (generatedCharacter.relationships && generatedCharacter.relationships.length > 0) {
+        setRelationships(generatedCharacter.relationships)
+      }
+    } catch (error) {
+      console.error("生成角色信息失败:", error)
+      alert("生成角色信息失败，请稍后重试")
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const base = {
@@ -151,6 +208,28 @@ export default function CharacterForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="flex justify-between items-start mb-4">
+        <h2 className="text-xl font-semibold">{isEditing ? "编辑角色" : "创建角色"}</h2>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="flex items-center gap-2"
+              >
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {isGenerating ? "生成中..." : "AI自动补全角色信息"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>使用AI自动生成角色信息。<br />如果已填写部分信息，AI会根据已有信息进行补全。</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>

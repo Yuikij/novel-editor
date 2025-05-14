@@ -26,6 +26,7 @@ import { deletePlot, fetchPlotsPage, createPlot, updatePlot, batchDeletePlots, a
 import { fetchOutlinePlotPointsPage, createOutlinePlotPoint, updateOutlinePlotPoint, deleteOutlinePlotPoint, autoExpandOutlinePlotPoints, batchDeleteOutlinePlotPoints } from '@/app/lib/api/outline-plot-point'
 import { fetchCharacter } from '@/app/lib/api/character'
 import { toast } from 'react-hot-toast'
+import { DraftEditor } from "@/app/components/novel-editor/draft-editor"
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState<string>("write")
@@ -783,6 +784,13 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         >
           大纲
         </Button>
+        <Button
+          variant={activeTab === "draft" ? "default" : "ghost"}
+          onClick={() => setActiveTab("draft")}
+          className="flex-1"
+        >
+          草稿
+        </Button>
       </div>
 
       <div className="container flex-1 pb-8">
@@ -1413,6 +1421,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
             </div>
             {isOutlinesLoading && <div className="p-8 text-center">加载中...</div>}
             {outlinesError && <div className="p-8 text-center text-red-500">{outlinesError}</div>}
+          </div>
+        )}
+        {activeTab === "draft" && (
+          <div className="rounded-lg">
+            <DraftEditor projectId={params.id} />
           </div>
         )}
       </div>

@@ -16,6 +16,7 @@ export interface Project {
   worldId?: string
   createdAt?: string
   updatedAt?: string
+  draft?: Record<string, any>
 }
 
 // 获取项目列表（分页）
@@ -83,4 +84,24 @@ export async function deleteProject(id: string) {
     method: 'DELETE' })
   if (!res.ok) throw new Error('项目删除失败')
   return true
+}
+
+// 获取项目草稿
+export async function fetchProjectDraft(id: string) {
+  const res = await fetch(`${API_BASE_URL}/projects/${id}/draft`)
+  if (!res.ok) throw new Error('获取项目草稿失败')
+  const data = await res.json()
+  return data.data as Record<string, any>
+}
+
+// 保存项目草稿
+export async function saveProjectDraft(id: string, draft: Record<string, any>) {
+  const res = await fetch(`${API_BASE_URL}/projects/${id}/draft`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(draft),
+  })
+  if (!res.ok) throw new Error('保存项目草稿失败')
+  const data = await res.json()
+  return data.data as Project
 } 
