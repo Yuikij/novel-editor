@@ -51,7 +51,9 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const [genWordCount, setGenWordCount] = useState("")
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState(0)
   const editorContainerRef = useRef<HTMLDivElement | null>(null)
+  const [pollingTimestamp, setPollingTimestamp] = useState<number>(0)
 
   // 加载章节内容
   useEffect(() => {
@@ -242,7 +244,10 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   // 你的内容生成处理函数（如无则需实现）
   const handleGenerateContent = async ({ prompt, wordCount }: { prompt?: string; wordCount?: string }) => {
     if (!chapterId || !projectId) return;
+    console.log('Start content generation process');
     setIsGenerating(true);
+    setGenerationProgress(0);
+    
     try {
       const params = new URLSearchParams({
         chapterId,
@@ -250,33 +255,236 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         ...(prompt ? { promptSuggestion: prompt } : {}),
         ...(wordCount ? { wordCountSuggestion: wordCount } : {}),
       });
-      const url = `${API_BASE_URL}/chapters/generate/stream?${params.toString()}`;
-      const res = await fetch(url);
-      if (!res.body) throw new Error("无流式响应");
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
-      let acc = "";
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          acc += chunk;
-          setContent(prev => {
-            const next = prev + chunk;
-            countWords(next);
-            return next;
-          });
-        }
-        done = doneReading;
+      
+      console.log('Execute params:', params.toString());
+      
+      // 1. 调用 execute 接口获取 planId
+      const executeUrl = `${API_BASE_URL}/chapters/generate/execute?${params.toString()}`;
+      console.log('Calling execute API:', executeUrl);
+      const executeRes = await fetch(executeUrl);
+      const executeData = await executeRes.json();
+      console.log('Execute response:', executeData);
+      
+      if (executeData.code !== 200 || !executeData.data) {
+        throw new Error("启动生成失败: " + (executeData.message || "未知错误"));
       }
-    } catch (err) {
-      // 可选：错误处理
-      // setError(err.message || "生成失败")
-    } finally {
+      
+      const planId = executeData.data; // planId直接在data字段中
+      console.log('Got planId:', planId);
+      toast.success("已开始生成内容，请稍候...");
+      
+      // 存储planId到状态中，这样useEffect可以监听它
+      console.log('Setting localStorage items');
+      localStorage.setItem('current_generation_plan_id', planId);
+      localStorage.setItem('generation_polling_active', 'true');
+      console.log('localStorage set complete');
+      
+      // 强制触发 useEffect 重新运行
+      setPollingTimestamp(Date.now());
+      console.log('Polling timestamp updated to trigger effect');
+      
+    } catch (err: any) {
+      console.error("生成失败:", err);
+      toast.error(err.message || "生成失败");
       setIsGenerating(false);
+      localStorage.removeItem('current_generation_plan_id');
+      localStorage.removeItem('generation_polling_active');
     }
   }
+  
+  // 使用useEffect来处理轮询逻辑
+  useEffect(() => {
+    // 只在isGenerating为true且有计划ID时才启动轮询
+    console.log('Polling useEffect triggered, isGenerating:', isGenerating, 'timestamp:', pollingTimestamp);
+    if (!isGenerating && pollingTimestamp === 0) {
+      console.log('Not generating and no forced check, skipping polling setup');
+      return;
+    }
+    
+    const planId = localStorage.getItem('current_generation_plan_id');
+    console.log('planId from localStorage:', planId);
+    if (!planId) {
+      console.log('No planId found, skipping polling setup');
+      return;
+    }
+    
+    const isPollingActive = localStorage.getItem('generation_polling_active') === 'true';
+    console.log('isPollingActive:', isPollingActive);
+    if (!isPollingActive) {
+      console.log('Polling not active, skipping polling setup');
+      return;
+    }
+    
+    console.log('Setting up polling for planId:', planId);
+    
+    // 立即执行一次检查
+    const checkProgress = async () => {
+      console.log('Running progress check for planId:', planId);
+      try {
+        const progressUrl = `${API_BASE_URL}/chapters/generate/progress?planId=${planId}`;
+        console.log('Checking progress URL:', progressUrl);
+        const progressRes = await fetch(progressUrl);
+        const progressData = await progressRes.json();
+        
+        console.log('Progress response:', progressData);
+        
+        // 显示进度信息
+        if (progressData.data?.progress) {
+          const progress = parseInt(progressData.data.progress);
+          console.log('Progress value:', progress);
+          setGenerationProgress(progress);
+          // 不用每次都显示toast，避免过多提示
+          if (progress % 20 === 0) { // 每增加20%显示一次
+            toast.success(`生成进度: ${progress}%`);
+          }
+        }
+        
+        // 根据返回的状态码显示不同的状态信息
+        if (progressData.data?.stateMessage) {
+          console.log('State message:', progressData.data.stateMessage);
+        }
+        
+        // 根据API响应，判断生成状态
+        // 状态枚举： 0-计划中，1-执行中，2-生成中，3-已完成
+        if (progressData.code === 200) {
+          // 显示对应的状态描述
+          switch (progressData.data?.state) {
+            case 0:
+              console.log('Planning stage');
+              break;
+            case 1:
+              console.log('In progress stage');
+              break;
+            case 2:
+              console.log('Generating content');
+              break;
+            case 3:
+              console.log('Generation completed, stopping polling');
+              // 已完成：停止轮询并获取内容
+              localStorage.removeItem('generation_polling_active');
+              localStorage.removeItem('current_generation_plan_id');
+              setPollingTimestamp(0); // 重置时间戳
+              
+              // 设置进度为100%
+              setGenerationProgress(100);
+              toast.success("生成完成，正在获取内容...");
+              
+              // 获取生成的内容
+              const contentUrl = `${API_BASE_URL}/chapters/generate/content?planId=${planId}`;
+              console.log('Fetching content, URL:', contentUrl);
+              const contentRes = await fetch(contentUrl);
+              
+              // 检查内容响应
+              if (!contentRes.ok) {
+                throw new Error(`获取内容失败: ${contentRes.status}`);
+              }
+
+              // 检查是否是流式响应
+              const contentType = contentRes.headers.get('content-type');
+              console.log('Content response type:', contentType);
+              
+              // 如果是JSON响应，直接解析
+              if (contentType && contentType.includes('application/json')) {
+                console.log('Processing JSON content response');
+                const contentData = await contentRes.json();
+                console.log('Content data:', contentData);
+                if (contentData.code !== 200 || !contentData.data) {
+                  throw new Error("获取内容失败: " + (contentData.message || "未知错误"));
+                }
+                
+                const generatedContent = contentData.data;
+                console.log('Generated content length:', generatedContent.length);
+                setContent(prev => {
+                  const next = prev + generatedContent;
+                  countWords(next);
+                  return next;
+                });
+                
+                toast.success("内容生成完成");
+                setIsGenerating(false);
+                return;
+              }
+              
+              // 流式响应处理
+              if (!contentRes.body) {
+                throw new Error("无流式响应");
+              }
+              
+              console.log('Processing stream content response');
+              const reader = contentRes.body.getReader();
+              const decoder = new TextDecoder();
+              let done = false;
+              let acc = "";
+              
+              while (!done) {
+                const { value, done: doneReading } = await reader.read();
+                if (value) {
+                  const chunk = decoder.decode(value, { stream: true });
+                  acc += chunk;
+                  console.log('Received content chunk, length:', chunk.length);
+                  setContent(prev => {
+                    const next = prev + chunk;
+                    countWords(next);
+                    return next;
+                  });
+                }
+                done = doneReading;
+              }
+              
+              // 内容流式输出完成
+              console.log('Stream content complete');
+              toast.success("内容生成完成");
+              setIsGenerating(false);
+              break;
+            default:
+              console.log('Unknown state:', progressData.data?.state);
+              if (progressData.data?.state > 3) {
+                // 未知或错误状态，停止轮询
+                console.log('Stopping polling due to unknown/error state');
+                localStorage.removeItem('generation_polling_active');
+                localStorage.removeItem('current_generation_plan_id');
+                setPollingTimestamp(0);
+                const errorMessage = progressData.data?.message || "未知错误";
+                toast.error(`生成过程异常: ${errorMessage}`);
+                setIsGenerating(false);
+              }
+              break;
+          }
+        } else {
+          // API 请求本身出错
+          console.log('API error response:', progressData);
+          throw new Error("获取进度失败: " + (progressData.message || "未知错误"));
+        }
+      } catch (error: any) {
+        console.error('Progress check error:', error);
+        toast.error(error.message || "生成过程中出错");
+        localStorage.removeItem('generation_polling_active');
+        localStorage.removeItem('current_generation_plan_id');
+        setPollingTimestamp(0); // 重置时间戳
+        setIsGenerating(false);
+      }
+    };
+    
+    // 立即执行一次
+    console.log('Executing initial progress check');
+    checkProgress();
+    
+    // 设置定时器定期检查
+    console.log('Setting up interval timer');
+    const intervalId = setInterval(() => {
+      console.log('Interval triggered, checking progress...');
+      checkProgress();
+    }, 2000);
+    
+    // 清理函数
+    return () => {
+      console.log('Cleaning up interval timer');
+      clearInterval(intervalId);
+      // 重置时间戳但不清除状态，让状态由业务逻辑处理
+      setPollingTimestamp(0);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGenerating, pollingTimestamp]);
 
   // 监听 Esc 键退出全屏
   useEffect(() => {
@@ -298,6 +506,15 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
       }
     }, 0);
   }, [content, isGenerating, viewMode]);
+
+  // 清理函数，确保组件卸载时清除所有状态
+  useEffect(() => {
+    return () => {
+      // 组件卸载时清除生成状态
+      localStorage.removeItem('current_generation_plan_id');
+      localStorage.removeItem('generation_polling_active');
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -502,8 +719,40 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               <p className="mt-1 text-sm text-muted-foreground">
                 根据现有内容，自动生成后续情节。
               </p>
-              <Button size="sm" className="mt-2 w-full" onClick={() => setShowGenOptions(true)}>生成内容</Button>
-              {showGenOptions && (
+              {isGenerating ? (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium">生成进度：{generationProgress}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 mb-3">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300" 
+                      style={{ width: `${generationProgress}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-muted-foreground">
+                      正在生成中，请稍候...
+                    </p>
+                    <Button 
+                      size="sm" 
+                      variant="destructive"
+                      onClick={() => {
+                        // 取消生成
+                        localStorage.removeItem('current_generation_plan_id');
+                        localStorage.removeItem('generation_polling_active');
+                        setIsGenerating(false);
+                        toast.success("已取消内容生成");
+                      }}
+                    >
+                      取消生成
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button size="sm" className="mt-2 w-full" onClick={() => setShowGenOptions(true)}>生成内容</Button>
+              )}
+              {showGenOptions && !isGenerating && (
                 <div className="mt-3 space-y-2">
                   <textarea
                     className="w-full rounded border bg-background px-2 py-1 text-sm"
