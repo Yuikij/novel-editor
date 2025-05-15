@@ -27,6 +27,7 @@ import { fetchOutlinePlotPointsPage, createOutlinePlotPoint, updateOutlinePlotPo
 import { fetchCharacter } from '@/app/lib/api/character'
 import { toast } from 'react-hot-toast'
 import { DraftEditor } from "@/app/components/novel-editor/draft-editor"
+import { MapEditor } from "@/app/components/novel-editor/map-editor"
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState<string>("write")
@@ -791,6 +792,13 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         >
           草稿
         </Button>
+        <Button
+          variant={activeTab === "map" ? "default" : "ghost"}
+          onClick={() => setActiveTab("map")}
+          className="flex-1"
+        >
+          地图
+        </Button>
       </div>
 
       <div className="container flex-1 pb-8">
@@ -1426,6 +1434,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         {activeTab === "draft" && (
           <div className="rounded-lg">
             <DraftEditor projectId={params.id} />
+          </div>
+        )}
+        {activeTab === "map" && (
+          <div className="rounded-lg">
+            <MapEditor projectId={params.id} />
           </div>
         )}
       </div>

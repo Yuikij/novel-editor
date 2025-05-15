@@ -77,6 +77,82 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
       console.error('Error notifying content consumption:', error);
     }
   };
+  
+  // 获取生成内容并立即标记完成
+  const getContentAndNotifyCompletion = async (planId: string) => {
+    try {
+      // 获取生成的内容
+      const contentUrl = `${API_BASE_URL}/chapters/generate/content?planId=${planId}`;
+      console.log('Fetching content, URL:', contentUrl);
+      const contentRes = await fetch(contentUrl);
+      
+      if (!contentRes.ok) {
+        throw new Error(`获取内容失败: ${contentRes.status}`);
+      }
+      
+      // 检查响应类型并处理内容
+      const contentType = contentRes.headers.get('content-type');
+      console.log('Content response type:', contentType);
+      
+      let contentProcessed = false;
+      
+      // 处理JSON响应
+      if (contentType && contentType.includes('application/json')) {
+        console.log('Processing JSON content response');
+        const contentData = await contentRes.json();
+        
+        if (contentData.code !== 200 || !contentData.data) {
+          throw new Error("获取内容失败: " + (contentData.message || "未知错误"));
+        }
+        
+        const generatedContent = contentData.data;
+        console.log('Generated content length:', generatedContent.length);
+        setContent(prev => {
+          const next = prev + generatedContent;
+          countWords(next);
+          return next;
+        });
+        
+        contentProcessed = true;
+        toast.success("内容生成完成");
+      } 
+      // 处理流式响应
+      else if (contentRes.body) {
+        console.log('Processing stream content response');
+        const reader = contentRes.body.getReader();
+        const decoder = new TextDecoder();
+        let done = false;
+        
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          if (value) {
+            const chunk = decoder.decode(value, { stream: true });
+            console.log('Received content chunk, length:', chunk.length);
+            setContent(prev => {
+              const next = prev + chunk;
+              countWords(next);
+              return next;
+            });
+          }
+          done = doneReading;
+        }
+        
+        contentProcessed = true;
+        console.log('Stream content complete');
+        toast.success("内容生成完成");
+      }
+      
+      if (contentProcessed) {
+        // 立即调用completed - 关键修改，确保在处理完内容后立即调用
+        console.log('Content processed successfully, immediately calling completed API');
+        await notifyContentConsumed(planId);
+      }
+      
+    } catch (error: any) {
+      console.error('Error fetching content:', error);
+      toast.error(error.message || "获取内容失败");
+    }
+  };
 
   // 加载章节内容
   useEffect(() => {
@@ -381,10 +457,14 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               break;
             case 2:
               console.log('Generating content');
-              
-              // 当状态为2(生成中)时，调用content接口获取已生成的内容片段
+              // 根据新的需求：
+              // 1. 在/generate/content生成中的时候，不需要调用progress和content
+              // 2. 当content完成后必须立即调用completed
+              // 3. 完成后继续progress，state为2时继续生成
+
+              // 当有新内容时，获取内容并立即调用completed
               if (progressData.data?.hasContent) {
-                console.log('Has partial content available, fetching content');
+                console.log('Has content available, getting content and calling completed immediately');
                 
                 // 检查是否有唯一标识符，避免重复获取相同内容
                 const contentId = progressData.data?.contentId || '';
@@ -395,24 +475,29 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                   break;
                 }
                 
+                // 记录当前内容ID，避免重复处理
+                if (contentId) {
+                  setLastGeneratedContentId(contentId);
+                }
+                
                 try {
-                  // 获取生成中的内容片段
+                  // 直接获取内容
                   const contentUrl = `${API_BASE_URL}/chapters/generate/content?planId=${planId}`;
-                  console.log('Fetching partial content, URL:', contentUrl);
+                  console.log('Directly fetching content, URL:', contentUrl);
                   const contentRes = await fetch(contentUrl);
                   
                   if (!contentRes.ok) {
-                    console.error(`获取部分内容失败: ${contentRes.status}`);
-                    break;
+                    throw new Error(`获取内容失败: ${contentRes.status}`);
                   }
                   
                   const contentType = contentRes.headers.get('content-type');
+                  let contentProcessed = false;
                   
-                  // 如果是JSON响应，直接解析
+                  // 处理JSON响应
                   if (contentType && contentType.includes('application/json')) {
                     console.log('Processing JSON content response');
                     const contentData = await contentRes.json();
-                    console.log('Content data:', contentData);
+                    
                     if (contentData.code !== 200 || !contentData.data) {
                       throw new Error("获取内容失败: " + (contentData.message || "未知错误"));
                     }
@@ -425,14 +510,12 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                       return next;
                     });
                     
+                    contentProcessed = true;
                     toast.success("内容生成完成");
-                    
-                    // 通知后端已完成内容消费
-                    await notifyContentConsumed(planId);
                   } 
-                  // 流式响应处理
+                  // 处理流式响应
                   else if (contentRes.body) {
-                    console.log('Processing stream content response for partial content');
+                    console.log('Processing stream content response');
                     const reader = contentRes.body.getReader();
                     const decoder = new TextDecoder();
                     let done = false;
@@ -443,7 +526,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                       if (value) {
                         const chunk = decoder.decode(value, { stream: true });
                         partialChunk += chunk;
-                        console.log('Received partial content chunk, length:', chunk.length);
+                        console.log('Received content chunk, length:', chunk.length);
                       }
                       done = doneReading;
                     }
@@ -455,19 +538,32 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                         return next;
                       });
                       
-                      // 保存最后获取的内容ID，避免重复添加
-                      if (contentId) {
-                        setLastGeneratedContentId(contentId);
-                      }
-                      
-                      toast.success("已获取部分生成内容");
-                      
-                      // 通知后端已完成内容消费
-                      await notifyContentConsumed(planId);
+                      contentProcessed = true;
+                      toast.success("已获取生成内容");
                     }
                   }
+                  
+                  // 内容处理完成后立即调用completed
+                  if (contentProcessed) {
+                    console.log('Content processed, immediately calling completed API');
+                    const notifyUrl = `${API_BASE_URL}/chapters/generate/content/completed?planId=${planId}`;
+                    console.log('Notifying content consumed, URL:', notifyUrl);
+                    const response = await fetch(notifyUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                    });
+                    
+                    if (!response.ok) {
+                      console.error(`通知内容消费完成失败: ${response.status}`);
+                    } else {
+                      console.log('Content consumption notification successful');
+                    }
+                  }
+                  
                 } catch (partialError) {
-                  console.error('Error fetching partial content:', partialError);
+                  console.error('Error fetching content:', partialError);
                 }
               }
               break;
@@ -483,79 +579,94 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               setGenerationProgress(100);
               toast.success("生成完成，正在获取内容...");
               
-              // 获取生成的内容
-              const contentUrl = `${API_BASE_URL}/chapters/generate/content?planId=${planId}`;
-              console.log('Fetching content, URL:', contentUrl);
-              const contentRes = await fetch(contentUrl);
-              
-              // 检查内容响应
-              if (!contentRes.ok) {
-                throw new Error(`获取内容失败: ${contentRes.status}`);
-              }
-
-              // 检查是否是流式响应
-              const contentType = contentRes.headers.get('content-type');
-              console.log('Content response type:', contentType);
-              
-              // 如果是JSON响应，直接解析
-              if (contentType && contentType.includes('application/json')) {
-                console.log('Processing JSON content response');
-                const contentData = await contentRes.json();
-                console.log('Content data:', contentData);
-                if (contentData.code !== 200 || !contentData.data) {
-                  throw new Error("获取内容失败: " + (contentData.message || "未知错误"));
+              // 直接获取内容并立即调用completed
+              try {
+                // 获取生成的内容
+                const contentUrl = `${API_BASE_URL}/chapters/generate/content?planId=${planId}`;
+                console.log('Fetching final content, URL:', contentUrl);
+                const contentRes = await fetch(contentUrl);
+                
+                if (!contentRes.ok) {
+                  throw new Error(`获取内容失败: ${contentRes.status}`);
                 }
                 
-                const generatedContent = contentData.data;
-                console.log('Generated content length:', generatedContent.length);
-                setContent(prev => {
-                  const next = prev + generatedContent;
-                  countWords(next);
-                  return next;
-                });
+                const contentType = contentRes.headers.get('content-type');
+                let contentProcessed = false;
                 
-                toast.success("内容生成完成");
-                
-                // 通知后端已完成内容消费
-                await notifyContentConsumed(planId);
-                
-                setIsGenerating(false);
-                break;
-              }
-              
-              // 流式响应处理
-              if (!contentRes.body) {
-                throw new Error("无流式响应");
-              }
-              
-              console.log('Processing stream content response');
-              const reader = contentRes.body.getReader();
-              const decoder = new TextDecoder();
-              let done = false;
-              let acc = "";
-              
-              while (!done) {
-                const { value, done: doneReading } = await reader.read();
-                if (value) {
-                  const chunk = decoder.decode(value, { stream: true });
-                  acc += chunk;
-                  console.log('Received content chunk, length:', chunk.length);
+                // 处理JSON响应
+                if (contentType && contentType.includes('application/json')) {
+                  console.log('Processing JSON final content response');
+                  const contentData = await contentRes.json();
+                  
+                  if (contentData.code !== 200 || !contentData.data) {
+                    throw new Error("获取内容失败: " + (contentData.message || "未知错误"));
+                  }
+                  
+                  const generatedContent = contentData.data;
+                  console.log('Final generated content length:', generatedContent.length);
                   setContent(prev => {
-                    const next = prev + chunk;
+                    const next = prev + generatedContent;
                     countWords(next);
                     return next;
                   });
+                  
+                  contentProcessed = true;
+                  toast.success("内容生成完成");
+                } 
+                // 处理流式响应
+                else if (contentRes.body) {
+                  console.log('Processing stream content response for final content');
+                  const reader = contentRes.body.getReader();
+                  const decoder = new TextDecoder();
+                  let done = false;
+                  let finalContent = "";
+                  
+                  while (!done) {
+                    const { value, done: doneReading } = await reader.read();
+                    if (value) {
+                      const chunk = decoder.decode(value, { stream: true });
+                      finalContent += chunk;
+                      console.log('Received final content chunk, length:', chunk.length);
+                    }
+                    done = doneReading;
+                  }
+                  
+                  if (finalContent) {
+                    setContent(prev => {
+                      const next = prev + finalContent;
+                      countWords(next);
+                      return next;
+                    });
+                    
+                    contentProcessed = true;
+                    toast.success("内容生成完成");
+                  }
                 }
-                done = doneReading;
+                
+                // 内容处理完成后立即调用completed
+                if (contentProcessed) {
+                  console.log('Final content processed, immediately calling completed API');
+                  const notifyUrl = `${API_BASE_URL}/chapters/generate/content/completed?planId=${planId}`;
+                  console.log('Notifying content consumed, URL:', notifyUrl);
+                  const response = await fetch(notifyUrl, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                  });
+                  
+                  if (!response.ok) {
+                    console.error(`通知内容消费完成失败: ${response.status}`);
+                  } else {
+                    console.log('Content consumption notification successful');
+                  }
+                }
+              } catch (error: any) {
+                console.error('Error fetching final content:', error);
+                toast.error(error.message || "获取最终内容失败");
               }
               
-              // 内容流式输出完成
-              console.log('Stream content complete');
-              toast.success("内容生成完成");
-              
-              // 通知后端已完成内容消费
-              await notifyContentConsumed(planId);
-              
+              // 完成内容生成标记（不再继续轮询）
               setIsGenerating(false);
               break;
             default:

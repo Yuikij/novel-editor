@@ -104,4 +104,24 @@ export async function saveProjectDraft(id: string, draft: Record<string, any>) {
   if (!res.ok) throw new Error('保存项目草稿失败')
   const data = await res.json()
   return data.data as Project
+}
+
+// 获取项目地图
+export async function fetchProjectMap(id: string) {
+  const res = await fetch(`${API_BASE_URL}/projects/${id}/map`)
+  if (!res.ok) throw new Error('获取项目地图失败')
+  const data = await res.json()
+  return data.data as Record<string, any>
+}
+
+// 保存项目地图
+export async function saveProjectMap(id: string, map: Record<string, any>) {
+  const res = await fetch(`${API_BASE_URL}/projects/${id}/map`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(map),
+  })
+  if (!res.ok) throw new Error('保存项目地图失败')
+  const data = await res.json()
+  return data.data as Project
 } 
