@@ -158,7 +158,7 @@ export default function DashboardPage() {
           <div className="h-full py-6 pl-8 pr-6">
             <div className="flex flex-col gap-2">
               <h2 className="mb-2 px-2 text-lg font-semibold tracking-tight">
-                Novel Editor
+                小说编辑器
               </h2>
               <nav className="flex flex-col gap-1">
                 <Link
@@ -166,21 +166,21 @@ export default function DashboardPage() {
                   className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-accent-foreground"
                 >
                   <DocumentIcon className="h-5 w-5" />
-                  Projects
+                  项目
                 </Link>
                 <Link
                   href="/dashboard/worlds"
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
                   <WorldIcon className="h-5 w-5" />
-                  Worlds
+                  世界
                 </Link>
                 {/* <Link
                   href="/dashboard/analysis"
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
                   <AnalysisIcon className="h-5 w-5" />
-                  Analysis
+                  分析
                 </Link> */}
               </nav>
             </div>
@@ -188,7 +188,7 @@ export default function DashboardPage() {
         </aside>
         <main className="w-full">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
+            <h1 className="text-2xl font-bold tracking-tight">项目</h1>
             {/* <Button className="flex items-center gap-2" onClick={handleOpenCreateModal}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -205,7 +205,7 @@ export default function DashboardPage() {
                 <path d="M12 5v14" />
                 <path d="M5 12h14" />
               </svg>
-              New Project
+              新建项目
             </Button> */}
           </div>
           <div className="mt-6">

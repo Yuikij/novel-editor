@@ -6,8 +6,8 @@ import { Toaster } from 'react-hot-toast'
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "NovelAI - AI Novel Editor",
-  description: "An AI-powered novel writing and editing platform",
+  title: "小说AI - AI小说编辑器",
+  description: "一个AI驱动的小说写作和编辑平台",
 }
 
 export default function RootLayout({
@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="zh-CN" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
