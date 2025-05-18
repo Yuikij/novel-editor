@@ -3,15 +3,19 @@
 import Link from "next/link"
 import { LogoIcon } from "@/app/components/ui/icons"
 import { Button } from "@/app/components/ui/button"
+import { LanguageSwitcher } from "@/app/components/ui/language-switcher"
+import { useLanguage } from "@/app/lib/i18n/language-context"
 
 export default function DashboardHeader() {
+  const { t } = useLanguage()
+  
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
         <div className="flex items-center gap-2 font-bold">
           <Link href="/dashboard" className="flex items-center gap-2">
             <LogoIcon className="h-6 w-6" />
-            <span>小说AI</span>
+            <span>{t('app.name')}</span>
           </Link>
         </div>
         <div className="flex flex-1 items-center justify-end space-x-2">
@@ -32,8 +36,9 @@ export default function DashboardHeader() {
                 <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
               </svg>
-              张三
+              {t('user.name')}
             </div>
+            <LanguageSwitcher />
             <Button variant="ghost" size="icon">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -47,7 +52,7 @@ export default function DashboardHeader() {
               >
                 <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364-.7071-.7071M6.34315 6.34315l-.70711-.70711m12.72796.00005-.7071.70711M6.3432 17.6569l-.70711.7071M16 12c0 2.2091-1.7909 4-4 4-2.20914 0-4-1.7909-4-4 0-2.20914 1.79086-4 4-4 2.2091 0 4 1.79086 4 4Z" />
               </svg>
-              <span className="sr-only">切换主题</span>
+              <span className="sr-only">{t('user.theme')}</span>
             </Button>
             <Button variant="ghost" size="icon">
               <svg
@@ -63,7 +68,7 @@ export default function DashboardHeader() {
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                 <circle cx="12" cy="7" r="4" />
               </svg>
-              <span className="sr-only">账户</span>
+              <span className="sr-only">{t('user.account')}</span>
             </Button>
           </nav>
         </div>

@@ -28,8 +28,10 @@ import { fetchCharacter } from '@/app/lib/api/character'
 import { toast } from 'react-hot-toast'
 import { DraftEditor } from "@/app/components/novel-editor/draft-editor"
 import { MapEditor } from "@/app/components/novel-editor/map-editor"
+import { useLanguage } from "@/app/lib/i18n/language-context"
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
+  const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState<string>("write")
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [activeChapterId, setActiveChapterId] = useState<string>("")
@@ -697,7 +699,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setPlotAutoExpandState({ isOpen: false })
   }
 
-  if (isLoading) return <div className="p-8 text-center">加载中...</div>
+  if (isLoading) return <div className="p-8 text-center">{t('common.loading')}</div>
   if (hasError) return <div className="p-8 text-center text-red-500">{hasError}</div>
   if (!project) return null
 
@@ -720,11 +722,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                 strokeLinejoin="round"
                 className="mr-1 h-4 w-4"
               >
-                <path d="m12 19-7-7 7-7" />
-                <path d="M19 12H5" />
-              </svg>
-              返回
-            </Link>
+                              <path d="m12 19-7-7 7-7" />                <path d="M19 12H5" />              </svg>              {t('nav.back')}            </Link>
           </Button>
           <h1 className="text-2xl font-bold tracking-tight">{project.title}</h1>
         </div>
@@ -755,49 +753,49 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           onClick={() => setActiveTab("write")}
           className="flex-1"
         >
-          写作
+          {t('project.tab.write')}
         </Button>
         <Button
           variant={activeTab === "chapter" ? "default" : "ghost"}
           onClick={() => setActiveTab("chapter")}
           className="flex-1"
         >
-          章节
+          {t('project.tab.chapters')}
         </Button>
         <Button
           variant={activeTab === "characters" ? "default" : "ghost"}
           onClick={() => setActiveTab("characters")}
           className="flex-1"
         >
-          角色
+          {t('project.tab.characters')}
         </Button>
         <Button
           variant={activeTab === "plots" ? "default" : "ghost"}
           onClick={() => setActiveTab("plots")}
           className="flex-1"
         >
-          情节
+          {t('project.tab.plots')}
         </Button>
         <Button
           variant={activeTab === "outline" ? "default" : "ghost"}
           onClick={() => setActiveTab("outline")}
           className="flex-1"
         >
-          大纲
+          {t('project.tab.outline')}
         </Button>
         <Button
           variant={activeTab === "draft" ? "default" : "ghost"}
           onClick={() => setActiveTab("draft")}
           className="flex-1"
         >
-          草稿
+          {t('project.tab.draft')}
         </Button>
         <Button
           variant={activeTab === "map" ? "default" : "ghost"}
           onClick={() => setActiveTab("map")}
           className="flex-1"
         >
-          地图
+          {t('project.tab.map')}
         </Button>
       </div>
 
@@ -1060,51 +1058,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
           <div className="rounded-lg border p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold">角色管理</h2>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-8 w-8 p-0"
-                  onClick={() => fetchCharacters()}
-                  disabled={isCharactersLoading}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M21 2v6h-6" />
-                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-                    <path d="M3 22v-6h6" />
-                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-                  </svg>
-                  <span className="sr-only">刷新</span>
-                </Button>
-              </div>
-              <Button onClick={handleAddCharacter}>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="mr-1 h-4 w-4"
-                >
-                  <path d="M12 5v14" />
-                  <path d="M5 12h14" />
-                </svg>
-                添加角色
-              </Button>
+                                <h2 className="text-xl font-bold">{t('project.character.title')}</h2>                <Button                   variant="ghost"                   size="sm"                   className="h-8 w-8 p-0"                  onClick={() => fetchCharacters()}                  disabled={isCharactersLoading}                >                  <svg                    xmlns="http://www.w3.org/2000/svg"                    width="16"                    height="16"                    viewBox="0 0 24 24"                    fill="none"                    stroke="currentColor"                    strokeWidth="2"                    strokeLinecap="round"                    strokeLinejoin="round"                  >                    <path d="M21 2v6h-6" />                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />                    <path d="M3 22v-6h6" />                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />                  </svg>                  <span className="sr-only">{t('common.refresh')}</span>                </Button>              </div>              <Button onClick={handleAddCharacter}>                <svg                  xmlns="http://www.w3.org/2000/svg"                  width="16"                  height="16"                  viewBox="0 0 24 24"                  fill="none"                  stroke="currentColor"                  strokeWidth="2"                  strokeLinecap="round"                  strokeLinejoin="round"                  className="mr-1 h-4 w-4"                >                  <path d="M12 5v14" />                  <path d="M5 12h14" />                </svg>                {t('project.character.add')}              </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {characters.map((character) => (
@@ -1118,16 +1072,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                       <p className="text-xs text-muted-foreground">{character.role}</p>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground line-clamp-3">{character.background}</p>
-                  <div className="mt-3 flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditCharacter(character)}>编辑</Button>
-                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteCharacter(character)}>删除</Button>
-                  </div>
+                                    <p className="text-sm text-muted-foreground line-clamp-3">{character.background}</p>                  <div className="mt-3 flex justify-end gap-2">                    <Button variant="ghost" size="sm" onClick={() => handleEditCharacter(character)}>{t('project.character.edit')}</Button>                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteCharacter(character)}>{t('project.character.delete')}</Button>                  </div>
                 </div>
               ))}
             </div>
-            {isCharactersLoading && <div className="p-8 text-center">加载中...</div>}
-            {charactersError && <div className="p-8 text-center text-red-500">{charactersError}</div>}
+                        {isCharactersLoading && <div className="p-8 text-center">{t('common.loading')}</div>}            {charactersError && <div className="p-8 text-center text-red-500">{charactersError}</div>}
           </div>
         )}
         {activeTab === "plots" && (

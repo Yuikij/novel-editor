@@ -17,6 +17,7 @@ import ProjectList from "@/app/components/novel-editor/project-list"
 import { Button } from "@/app/components/ui/button"
 import NovelSettingsForm from "@/app/components/novel-editor/novel-settings-form"
 import type { NovelProject, WorldBuilding } from "@/app/types"
+import { useLanguage } from "@/app/lib/i18n/language-context"
 
 const initialProjects: NovelProject[] = [
   {
@@ -91,6 +92,7 @@ const initialWorlds: WorldBuilding[] = [
 ]
 
 export default function DashboardPage() {
+  const { t } = useLanguage()
   const [projects, setProjects] = useState<NovelProject[]>(initialProjects)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<NovelProject | undefined>(undefined)
@@ -119,7 +121,7 @@ export default function DashboardPage() {
   }
 
   const handleDeleteProject = (project: NovelProject) => {
-    if (confirm("确定要删除这个项目吗？此操作不可恢复。")) {
+    if (confirm(t('dashboard.confirm.delete'))) {
       setProjects(projects.filter(p => p.id !== project.id))
     }
   }
@@ -138,15 +140,15 @@ export default function DashboardPage() {
   const getStatusInfo = (status: string) => {
     switch (status) {
       case "draft":
-        return { text: "草稿", class: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100" }
+        return { text: t('status.draft'), class: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100" }
       case "in-progress":
-        return { text: "进行中", class: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100" }
+        return { text: t('status.in_progress'), class: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100" }
       case "completed":
-        return { text: "已完成", class: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" }
+        return { text: t('status.completed'), class: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" }
       case "published":
-        return { text: "已发布", class: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100" }
+        return { text: t('status.published'), class: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100" }
       default:
-        return { text: "未知", class: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100" }
+        return { text: t('status.unknown'), class: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100" }
     }
   }
 
@@ -158,7 +160,7 @@ export default function DashboardPage() {
           <div className="h-full py-6 pl-8 pr-6">
             <div className="flex flex-col gap-2">
               <h2 className="mb-2 px-2 text-lg font-semibold tracking-tight">
-                小说编辑器
+                {t('editor.title')}
               </h2>
               <nav className="flex flex-col gap-1">
                 <Link
@@ -166,21 +168,21 @@ export default function DashboardPage() {
                   className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-accent-foreground"
                 >
                   <DocumentIcon className="h-5 w-5" />
-                  项目
+                  {t('nav.projects')}
                 </Link>
                 <Link
                   href="/dashboard/worlds"
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
                   <WorldIcon className="h-5 w-5" />
-                  世界
+                  {t('nav.worlds')}
                 </Link>
                 {/* <Link
                   href="/dashboard/analysis"
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
                   <AnalysisIcon className="h-5 w-5" />
-                  分析
+                  {t('nav.analysis')}
                 </Link> */}
               </nav>
             </div>
@@ -188,7 +190,7 @@ export default function DashboardPage() {
         </aside>
         <main className="w-full">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold tracking-tight">项目</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{t('nav.projects')}</h1>
             {/* <Button className="flex items-center gap-2" onClick={handleOpenCreateModal}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -205,7 +207,7 @@ export default function DashboardPage() {
                 <path d="M12 5v14" />
                 <path d="M5 12h14" />
               </svg>
-              新建项目
+              {t('dashboard.new_project')}
             </Button> */}
           </div>
           <div className="mt-6">
@@ -218,7 +220,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg max-h-[calc(100vh-32px)] overflow-y-auto">
             <h2 className="mb-4 text-xl font-bold">
-              {editingProject ? "编辑项目" : "创建新项目"}
+              {editingProject ? t('dashboard.edit_project') : t('dashboard.create_project')}
             </h2>
             <NovelSettingsForm
               project={editingProject}

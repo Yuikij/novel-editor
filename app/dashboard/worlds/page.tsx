@@ -9,6 +9,7 @@ import { Button } from "@/app/components/ui/button"
 import WorldForm from "@/app/components/novel-editor/world-form"
 import type { WorldBuilding, WorldElement } from "@/app/types"
 import { fetchWorldsPage, createWorld, updateWorld, deleteWorld, World } from '@/app/lib/api/world';
+import { useLanguage } from "@/app/lib/i18n/language-context"
 
 const initialWorlds: WorldBuilding[] = [
   {
@@ -64,6 +65,7 @@ type ModalState = {
 }
 
 export default function WorldsPage() {
+  const { t } = useLanguage()
   const [worlds, setWorlds] = useState<World[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [hasError, setHasError] = useState<string | null>(null)
@@ -77,7 +79,7 @@ export default function WorldsPage() {
     setIsLoading(true)
     fetchWorldsPage({ page: 1, pageSize: 50 })
       .then(res => setWorlds(res.data.records))
-      .catch(err => setHasError(err.message || '加载失败'))
+      .catch(err => setHasError(err.message || t('error.load')))
       .finally(() => setIsLoading(false))
   }
 
@@ -107,19 +109,19 @@ export default function WorldsPage() {
           elements: (world.elements ?? []) as WorldElement[]
         } as Omit<World, 'id'>
         await createWorld(payload)
-        setSuccessMsg('世界观创建成功')
+        setSuccessMsg(t('worlds.success.create'))
       } else if (modalState.mode === "edit" && world.id) {
         const payload = {
           ...world,
           elements: (world.elements ?? []) as WorldElement[]
         } as World
         await updateWorld(world.id, payload)
-        setSuccessMsg('世界观更新成功')
+        setSuccessMsg(t('worlds.success.update'))
       }
       setModalState({ isOpen: false, mode: "add" })
       fetchList()
     } catch (err: any) {
-      setHasError(err.message || '保存失败')
+      setHasError(err.message || t('error.save'))
     } finally {
       setIsLoading(false)
       setTimeout(() => setSuccessMsg(null), 2000)
@@ -131,11 +133,11 @@ export default function WorldsPage() {
       setIsLoading(true)
       try {
         await deleteWorld(modalState.world.id)
-        setSuccessMsg('世界观删除成功')
+        setSuccessMsg(t('worlds.success.delete'))
         setModalState({ isOpen: false, mode: "add" })
         fetchList()
       } catch (err: any) {
-        setHasError(err.message || '删除失败')
+        setHasError(err.message || t('error.delete'))
       } finally {
         setIsLoading(false)
         setTimeout(() => setSuccessMsg(null), 2000)
@@ -155,7 +157,7 @@ export default function WorldsPage() {
           <div className="h-full py-6 pl-8 pr-6">
             <div className="flex flex-col gap-2">
               <h2 className="mb-2 px-2 text-lg font-semibold tracking-tight">
-                Novel Editor
+                {t('editor.title')}
               </h2>
               <nav className="flex flex-col gap-1">
                 <Link
@@ -178,7 +180,7 @@ export default function WorldsPage() {
                     <path d="m3 9 2.45-4.9A2 2 0 0 1 7.24 3h9.52a2 2 0 0 1 1.8 1.1L21 9" />
                     <path d="M12 3v6" />
                   </svg>
-                  Projects
+                  {t('nav.projects')}
                 </Link>
                 <Link
                   href="/dashboard/worlds"
@@ -200,7 +202,7 @@ export default function WorldsPage() {
                     <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
                     <path d="M2 12h20" />
                   </svg>
-                  Worlds
+                  {t('nav.worlds')}
                 </Link>
                 {/* <Link
                   href="/dashboard/analysis"
@@ -220,7 +222,7 @@ export default function WorldsPage() {
                   >
                     <path d="M2 11h7v9H2zm7-9h7v18H9zm7 3h7v6h-7z" />
                   </svg>
-                  Analysis
+                  {t('nav.analysis')}
                 </Link> */}
               </nav>
             </div>
@@ -229,7 +231,7 @@ export default function WorldsPage() {
         <main className="w-full">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold tracking-tight">
-              World Building
+              {t('worlds.title')}
             </h1>
             <Button className="flex items-center gap-2" onClick={handleAddWorld} disabled={isLoading}>
               <svg
@@ -247,10 +249,10 @@ export default function WorldsPage() {
                 <path d="M12 5v14" />
                 <path d="M5 12h14" />
               </svg>
-              新建世界观
+              {t('worlds.create')}
             </Button>
           </div>
-          {isLoading && <div className="p-8 text-center">加载中...</div>}
+          {isLoading && <div className="p-8 text-center">{t('worlds.loading')}</div>}
           {hasError && <div className="p-8 text-center text-red-500">{hasError}</div>}
           {successMsg && <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded shadow">{successMsg}</div>}
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -259,8 +261,8 @@ export default function WorldsPage() {
                 <h3 className="text-xl font-medium">{world.name}</h3>
                 <p className="text-muted-foreground mt-2 line-clamp-3 flex-grow">{world.description || ''}</p>
                 <div className="flex justify-end gap-2 mt-4">
-                  <Button variant="ghost" size="sm" onClick={() => handleEditWorld(world)}>编辑</Button>
-                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteWorld(world)}>删除</Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleEditWorld(world)}>{t('worlds.edit')}</Button>
+                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteWorld(world)}>{t('worlds.delete')}</Button>
                 </div>
               </div>
             ))}
@@ -272,7 +274,7 @@ export default function WorldsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg max-h-[calc(100vh-32px)] overflow-y-auto">
             <h2 className="mb-4 text-xl font-bold">
-              {modalState.mode === "add" ? "Create New World" : "Edit World"}
+              {modalState.mode === "add" ? t('worlds.modal.create') : t('worlds.modal.edit')}
             </h2>
             <WorldForm
               world={modalState.world}
@@ -286,19 +288,19 @@ export default function WorldsPage() {
       {modalState.isOpen && modalState.mode === "delete" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg">
-            <h2 className="mb-2 text-xl font-bold">Delete World</h2>
+            <h2 className="mb-2 text-xl font-bold">{t('worlds.modal.delete.title')}</h2>
             <p className="mb-4 text-muted-foreground">
-              Are you sure you want to delete the world "{modalState.world?.name}"? This action cannot be undone.
+              {t('worlds.modal.delete.message', { name: modalState.world?.name || '' })}
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={handleCancelModal}>
-                Cancel
+                {t('worlds.modal.cancel')}
               </Button>
               <Button 
                 variant="destructive" 
                 onClick={handleConfirmDelete}
               >
-                Delete
+                {t('worlds.modal.confirm.delete')}
               </Button>
             </div>
           </div>
