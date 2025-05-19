@@ -52,6 +52,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
+  const [generationMessage, setGenerationMessage] = useState("")
   const editorContainerRef = useRef<HTMLDivElement | null>(null)
   const [pollingTimestamp, setPollingTimestamp] = useState<number>(0)
   const [lastGeneratedContentId, setLastGeneratedContentId] = useState<string>("")
@@ -465,6 +466,12 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
           console.log('[DEBUG] 状态消息:', progressData.data.stateMessage);
         }
         
+        // 保存消息内容
+        if (progressData.data?.message) {
+          console.log('[DEBUG] 详细消息:', progressData.data.message);
+          setGenerationMessage(progressData.data.message);
+        }
+        
         // 根据API响应，判断生成状态
         // 状态枚举： 0-计划中，1-执行中，2-生成中，3-已完成
         if (progressData.code === 200) {
@@ -625,6 +632,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               
               // 设置进度为100%
               setGenerationProgress(100);
+              setGenerationMessage(""); // 清除消息
               toast.success("生成完成！");
               
               // 完成内容生成标记（不再继续轮询）
@@ -642,6 +650,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                 const errorMessage = progressData.data?.message || "未知错误";
                 toast.error(`生成过程异常: ${errorMessage}`);
                 setIsGenerating(false);
+                setGenerationMessage(""); // 清除消息
               }
               break;
           }
@@ -658,6 +667,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         setPollingTimestamp(0); // 重置时间戳
         setLastGeneratedContentId(""); // 重置内容ID
         setIsGenerating(false);
+        setGenerationMessage(""); // 清除消息
         // 出现错误时复位标记
         isFetchingContentRef.current = false;
       }
@@ -930,6 +940,11 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                       style={{ width: `${generationProgress}%` }}
                     />
                   </div>
+                  {generationMessage && (
+                    <div className="mt-2 mb-3 max-h-32 overflow-y-auto bg-muted/30 p-2 rounded text-xs whitespace-pre-wrap">
+                      {generationMessage}
+                    </div>
+                  )}
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-muted-foreground">
                       正在生成中，请稍候...
@@ -942,6 +957,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                         localStorage.removeItem('current_generation_plan_id');
                         localStorage.removeItem('generation_polling_active');
                         setIsGenerating(false);
+                        setGenerationMessage(""); // 清除消息
                         toast.success("已取消内容生成");
                       }}
                     >
