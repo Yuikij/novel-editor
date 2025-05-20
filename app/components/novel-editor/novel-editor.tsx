@@ -30,6 +30,7 @@ interface NovelEditorProps {
 
 export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) {
   const [content, setContent] = useState<string>("")
+  const contentRef = useRef<string>("")
   const [chapter, setChapter] = useState<any>(null)
   const [isAiPanelOpen, setIsAiPanelOpen] = useState<boolean>(false)
   const [wordCount, setWordCount] = useState(0)
@@ -113,6 +114,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         setContent(prev => {
           const next = prev + generatedContent;
           countWords(next);
+          contentRef.current = next;
           return next;
         });
         
@@ -137,6 +139,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
             setContent(prev => {
               const next = prev + chunk;
               countWords(next);
+              contentRef.current = next;
               return next;
             });
             
@@ -149,6 +152,12 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         if (totalContent.length > 0) {
           console.log('[DEBUG] 流式内容接收完成, 总长度:', totalContent.length);
           contentProcessed = true;
+          
+          // 记录当前内容的状态，确保内容已被更新到state
+          console.log('[DEBUG CONTENT] 流处理完成 - 处理前内容长度:', content.length);
+          console.log('[DEBUG CONTENT] 流处理完成 - 本次新增内容长度:', totalContent.length);
+          console.log('[DEBUG CONTENT] 流处理完成 - 预期总内容长度:', content.length + totalContent.length);
+          
           toast.success("已获取生成内容");
         }
       }
@@ -157,6 +166,16 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         // 立即调用completed - 关键修改，确保在处理完内容后立即调用
         console.log('[IMPORTANT] getContentAndNotifyCompletion - 内容处理成功, 立即调用completed API');
         await notifyContentConsumed(planId);
+        
+        // 新增：内容处理完成后，自动保存内容
+        console.log('[IMPORTANT] getContentAndNotifyCompletion - 内容处理完成后自动保存');
+        console.log('[DEBUG CONTENT] getContentAndNotifyCompletion - 当前内容长度:', content.length);
+        console.log('[DEBUG CONTENT] getContentAndNotifyCompletion - contentRef当前内容长度:', contentRef.current.length);
+        debouncedSave.cancel(); // 取消任何待处理的自动保存
+        // 使用当前state中的最新内容
+        const latestContent = contentRef.current; // Use ref for most up-to-date value
+        console.log('[DEBUG CONTENT] getContentAndNotifyCompletion - 保存时的内容长度:', latestContent.length);
+        await saveContent(latestContent); // 直接调用保存，确保包含所有生成的内容
       } else {
         console.error('[ERROR] getContentAndNotifyCompletion - 内容未能成功处理');
       }
@@ -208,6 +227,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const handleChange = useCallback((value: string | undefined) => {
     const newContent = value || ""
     setContent(newContent)
+    contentRef.current = newContent
     countWords(newContent)
     debouncedSave(newContent)
   }, [])
@@ -338,7 +358,9 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
     
     // 取消任何待处理的自动保存
     debouncedSave.cancel()
-    await saveContent(content)
+    console.log('[DEBUG CONTENT] handleManualSave - 当前content长度:', content.length);
+    console.log('[DEBUG CONTENT] handleManualSave - contentRef长度:', contentRef.current.length);
+    await saveContent(contentRef.current) // Use ref for most up-to-date value
   }
 
   // 设置编辑器引用
@@ -475,6 +497,32 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         // 根据API响应，判断生成状态
         // 状态枚举： 0-计划中，1-执行中，2-生成中，3-已完成
         if (progressData.code === 200) {
+          // 接收到完成状态，直接保存当前内容
+          if (progressData.data?.state === 3 && 
+              progressData.data?.progress === 100 && 
+              progressData.data?.stateMessage === "已完成") {
+            console.log('[CRITICAL] 接收到完成状态响应，确保内容已保存');
+            console.log('[DEBUG CONTENT] 当前内容长度:', content.length);
+            console.log('[DEBUG CONTENT] contentRef当前内容长度:', contentRef.current.length);
+            // 自动保存所有生成的内容
+            debouncedSave.cancel(); // 取消任何待处理的自动保存
+            // 使用当前state中的content，确保保存最新内容
+            const currentContent = contentRef.current; // Use ref for most up-to-date value
+            console.log('[DEBUG CONTENT] 保存时的内容长度:', currentContent.length);
+            await saveContent(currentContent); // 直接调用保存，确保包含所有流式生成的内容
+            
+            // 重新执行之前的清理工作和状态更新
+            localStorage.removeItem('generation_polling_active');
+            localStorage.removeItem('current_generation_plan_id');
+            setPollingTimestamp(0);
+            setLastGeneratedContentId("");
+            setGenerationProgress(100);
+            setGenerationMessage("");
+            toast.success("生成完成并已保存！");
+            setIsGenerating(false);
+            return; // 直接返回，不再进入switch
+          }
+          
           // 显示对应的状态描述
           switch (progressData.data?.state) {
             case 0:
@@ -544,6 +592,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                     setContent(prev => {
                       const next = prev + generatedContent;
                       countWords(next);
+                      contentRef.current = next;
                       return next;
                     });
                     
@@ -568,6 +617,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                         setContent(prev => {
                           const next = prev + chunk;
                           countWords(next);
+                          contentRef.current = next;
                           return next;
                         });
                         
@@ -580,6 +630,12 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                     if (totalContent.length > 0) {
                       console.log('[DEBUG] 流式内容接收完成, 总长度:', totalContent.length);
                       contentProcessed = true;
+                      
+                      // 记录当前内容的状态，确保内容已被更新到state
+                      console.log('[DEBUG CONTENT] 流处理完成 - 处理前内容长度:', content.length);
+                      console.log('[DEBUG CONTENT] 流处理完成 - 本次新增内容长度:', totalContent.length);
+                      console.log('[DEBUG CONTENT] 流处理完成 - 预期总内容长度:', content.length + totalContent.length);
+                      
                       toast.success("已获取生成内容");
                     }
                   }
@@ -602,6 +658,17 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                       console.log('[CRITICAL] 内容消费通知成功, 将继续轮询');
                       // 通知成功后，不需要停止轮询，会继续下一次progress检查
                       // 如果state仍然为2，将会再次获取新的内容
+                      
+                      // 新增：每次成功获取内容后自动保存当前内容
+                      console.log('[IMPORTANT] 内容块处理完成后自动保存');
+                      console.log('[DEBUG CONTENT] 完成通知后 - 当前内容长度:', content.length);
+                      
+                      // 捕获当前content确保是最新的
+                      setTimeout(() => {
+                        console.log('[DEBUG CONTENT] 延迟保存 - 当前内容长度:', content.length);
+                        console.log('[DEBUG CONTENT] 延迟保存 - contentRef长度:', contentRef.current.length);
+                        debouncedSave(contentRef.current); // 使用contentRef的值确保最新内容
+                      }, 100);
                     }
                   } else {
                     console.error('[ERROR] 内容未能成功处理');
@@ -637,6 +704,18 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               
               // 完成内容生成标记（不再继续轮询）
               setIsGenerating(false);
+              
+              // 新增：生成完成时自动保存当前内容
+              console.log('[IMPORTANT] 生成完成后自动保存内容');
+              console.log('[DEBUG CONTENT] case 3 - 当前内容长度:', content.length);
+              console.log('[DEBUG CONTENT] case 3 - contentRef当前内容长度:', contentRef.current.length);
+              // 取消任何待处理的自动保存
+              debouncedSave.cancel();
+              // 获取当前最新content并保存
+              const latestContent = contentRef.current; // Use ref for most up-to-date value
+              console.log('[DEBUG CONTENT] case 3 - 保存时的内容长度:', latestContent.length);
+              // 直接调用保存函数，确保包含所有流式生成的内容
+              await saveContent(latestContent);
               break;
             default:
               console.log('[DEBUG] 未知状态:', progressData.data?.state);
