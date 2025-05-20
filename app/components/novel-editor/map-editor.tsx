@@ -44,6 +44,7 @@ interface MapLocation {
   description: string
   color?: string
   icon?: string
+  isDragging?: boolean|undefined
 }
 
 interface MapRegion {
@@ -87,6 +88,7 @@ type DrawingTool = "mountains" | "waters" | "forests" | "deserts" | "location" |
 type SelectedElement = {
   type: "location" | "region" | "mountain" | "water" | "forest" | "desert"
   id: string
+  isDragging?: boolean|undefined
 }
 
 export function MapEditor({ projectId }: MapEditorProps) {
@@ -115,6 +117,13 @@ export function MapEditor({ projectId }: MapEditorProps) {
   const [editingName, setEditingName] = useState<string>("")
   const [showNameEditor, setShowNameEditor] = useState<boolean>(false)
   const [nameEditorPosition, setNameEditorPosition] = useState<{x: number, y: number}>({x: 0, y: 0})
+  
+  // 拖动相关状态
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState<{x: number, y: number}>({x: 0, y: 0})
+  
+  // 按钮悬停状态
+  const [hoveredButton, setHoveredButton] = useState<{type: 'edit' | 'delete', elementType: string, elementId: string} | null>(null)
   
   // 创建直接引用临时绘制点，不通过状态来管理
   const drawingPointsRef = useRef<Array<{x: number, y: number}>>([])
@@ -344,6 +353,122 @@ export function MapEditor({ projectId }: MapEditorProps) {
     updateCurrentMap({ terrainFeatures: updatedTerrainFeatures })
   }
   
+  // 获取按钮位置
+  const getButtonPositions = (elementType: string, elementId: string): { deleteX: number, deleteY: number, editX: number, editY: number } | null => {
+    const currentMap = getCurrentMap();
+    if (!currentMap) return null;
+    
+    // 初始化按钮位置
+    let deleteX = 0;
+    let deleteY = 0;
+    let editX = 0;
+    let editY = 0;
+    
+    if (elementType === "location") {
+      const location = currentMap.locations.find(loc => loc.id === elementId);
+      if (location) {
+        // 把按钮放在下方，避免和拖动提示重叠
+        deleteX = location.x + 30;
+        deleteY = location.y + 25;
+        editX = location.x - 30;
+        editY = location.y + 25;
+      }
+    } else if (elementType === "region") {
+      const region = currentMap.regions.find(r => r.id === elementId);
+      if (region && region.path.length > 2) {
+        const center = getPolygonCenter(region.path);
+        deleteX = center.x + 30;
+        deleteY = center.y + 25;
+        editX = center.x - 30;
+        editY = center.y + 25;
+      }
+    } else if (elementType === "mountain" && currentMap.terrainFeatures.mountains) {
+      const index = parseInt(elementId);
+      if (!isNaN(index) && index < currentMap.terrainFeatures.mountains.length) {
+        const mountain = currentMap.terrainFeatures.mountains[index];
+        deleteX = mountain.x + 30;
+        deleteY = mountain.y + 25;
+        editX = mountain.x - 30;
+        editY = mountain.y + 25;
+      }
+    } else if (["water", "forest", "desert"].includes(elementType) && 
+               currentMap.terrainFeatures[elementType + "s" as keyof typeof currentMap.terrainFeatures]) {
+      const terrainType = elementType + "s" as "waters" | "forests" | "deserts";
+      const features = currentMap.terrainFeatures[terrainType]!;
+      const index = parseInt(elementId);
+      if (!isNaN(index) && index < features.length) {
+        const feature = features[index];
+        if (feature.path && feature.path.length > 2) {
+          const center = getPolygonCenter(feature.path);
+          deleteX = center.x + 30;
+          deleteY = center.y + 25;
+          editX = center.x - 30;
+          editY = center.y + 25;
+        }
+      }
+    }
+    
+    return { deleteX, deleteY, editX, editY };
+  };
+  
+  // 检查是否悬停在删除按钮上
+  const checkDeleteButtonHover = (x: number, y: number): boolean => {
+    if (!selectedElement || viewMode === "preview") return false;
+    
+    const buttonPositions = getButtonPositions(selectedElement.type, selectedElement.id);
+    if (!buttonPositions) return false;
+    
+    const { deleteX, deleteY } = buttonPositions;
+    
+    // 检查点是否在按钮范围内 (更大的点击区域)
+    const distance = Math.sqrt(Math.pow(x - deleteX, 2) + Math.pow(y - deleteY, 2));
+    return distance <= 18; // 增大悬停检测范围
+  };
+  
+  // 检查是否悬停在编辑按钮上
+  const checkEditButtonHover = (x: number, y: number): boolean => {
+    if (!selectedElement || viewMode === "preview" || 
+        !["location", "region"].includes(selectedElement.type)) return false;
+    
+    const buttonPositions = getButtonPositions(selectedElement.type, selectedElement.id);
+    if (!buttonPositions) return false;
+    
+    const { editX, editY } = buttonPositions;
+    
+    // 检查点是否在按钮范围内
+    const distance = Math.sqrt(Math.pow(x - editX, 2) + Math.pow(y - editY, 2));
+    return distance <= 18; // 增大悬停检测范围
+  };
+  
+  // 检查是否点击了删除按钮
+  const checkDeleteButtonClick = (x: number, y: number): boolean => {
+    if (!selectedElement || viewMode === "preview") return false;
+    
+    const buttonPositions = getButtonPositions(selectedElement.type, selectedElement.id);
+    if (!buttonPositions) return false;
+    
+    const { deleteX, deleteY } = buttonPositions;
+    
+    // 检查点击是否在删除按钮范围内
+    const distance = Math.sqrt(Math.pow(x - deleteX, 2) + Math.pow(y - deleteY, 2));
+    return distance <= 17; // 实际按钮半径 + 额外余量
+  };
+  
+  // 检查是否点击了编辑按钮
+  const checkEditButtonClick = (x: number, y: number): boolean => {
+    if (!selectedElement || viewMode === "preview" || 
+        !["location", "region"].includes(selectedElement.type)) return false;
+    
+    const buttonPositions = getButtonPositions(selectedElement.type, selectedElement.id);
+    if (!buttonPositions) return false;
+    
+    const { editX, editY } = buttonPositions;
+    
+    // 检查点击是否在编辑按钮范围内
+    const distance = Math.sqrt(Math.pow(x - editX, 2) + Math.pow(y - editY, 2));
+    return distance <= 17; // 实际按钮半径 + 额外余量
+  };
+  
   // 处理选中元素的功能
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (viewMode === "preview") return
@@ -354,6 +479,19 @@ export function MapEditor({ projectId }: MapEditorProps) {
     const rect = canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
+    
+    // 检查是否点击了删除按钮
+    if (selectedElement && checkDeleteButtonClick(x, y)) {
+      deleteSelectedElement();
+      return;
+    }
+    
+    // 检查是否点击了编辑按钮
+    if (selectedElement && checkEditButtonClick(x, y)) {
+      // 打开名称编辑器
+      openNameEditor(selectedElement);
+      return;
+    }
     
     if (drawingTool === "select") {
       // 选择工具逻辑
@@ -570,27 +708,13 @@ export function MapEditor({ projectId }: MapEditorProps) {
     const currentMap = getCurrentMap()
     if (!currentMap) return null
     
-    // 获取Canvas的位置信息以计算正确的屏幕坐标
-    const canvas = canvasRef.current
-    if (!canvas) return null
-    
-    const rect = canvas.getBoundingClientRect()
-    const canvasLeft = rect.left
-    const canvasTop = rect.top
-    
     // 首先检查位置点 (优先检查小元素)
     for (let i = 0; i < currentMap.locations.length; i++) {
       const location = currentMap.locations[i]
       const distance = Math.sqrt(Math.pow(location.x - x, 2) + Math.pow(location.y - y, 2))
       
       if (distance <= 10) { // 10px 判定范围
-        // 设置名称编辑器状态 - 转换为屏幕坐标
-        setEditingName(location.name)
-        setNameEditorPosition({
-          x: canvasLeft + location.x,
-          y: canvasTop + location.y + 25
-        })
-        setShowNameEditor(true)
+        // 只返回选中的元素，不再立即显示编辑器
         return { type: "location", id: location.id }
       }
     }
@@ -618,15 +742,7 @@ export function MapEditor({ projectId }: MapEditorProps) {
       const region = currentMap.regions[i]
       
       if (region.path.length >= 3 && isPointInPolygon({ x, y }, region.path)) {
-        // 设置名称编辑器状态
-        setEditingName(region.name)
-        const center = getPolygonCenter(region.path)
-        // 转换为屏幕坐标
-        setNameEditorPosition({
-          x: canvasLeft + center.x,
-          y: canvasTop + center.y
-        })
-        setShowNameEditor(true)
+        // 只返回选中的元素，不再立即显示编辑器
         return { type: "region", id: region.id }
       }
     }
@@ -860,24 +976,54 @@ export function MapEditor({ projectId }: MapEditorProps) {
       ctx.strokeStyle = '#ff3e00'
       ctx.lineWidth = 2
       
+      // 获取按钮位置
+      const buttonPositions = getButtonPositions(type, id);
+      
       if (type === "location") {
         const location = currentMap.locations.find(loc => loc.id === id)
-        if (location) {
+        if (location && buttonPositions) {
+          const { deleteX, deleteY, editX, editY } = buttonPositions;
+          
+          // 绘制选中效果
           ctx.beginPath()
           ctx.arc(location.x, location.y, 10, 0, Math.PI * 2)
           ctx.stroke()
           
-          // 绘制删除选中元素的提示
+          // 在地点上方显示控制面板背景
           ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-          ctx.fillRect(location.x + 15, location.y - 20, 120, 20)
+          ctx.beginPath()
+          ctx.roundRect(location.x - 65, location.y - 50, 130, 30, 5)
+          ctx.fill()
+          
+          // 绘制拖动提示
           ctx.fillStyle = '#fff'
           ctx.font = '12px sans-serif'
-          ctx.textAlign = 'left'
-          ctx.fillText('按 Delete 键删除', location.x + 20, location.y - 5)
+          ctx.textAlign = 'center'
+          ctx.fillText('选择模式下可拖动', location.x, location.y - 30)
+          
+          // 检查按钮是否处于悬停状态
+          const isDeleteHovered = !!(hoveredButton && 
+                                 hoveredButton.type === 'delete' && 
+                                 hoveredButton.elementType === type && 
+                                 hoveredButton.elementId === id);
+                                 
+          const isEditHovered = !!(hoveredButton && 
+                              hoveredButton.type === 'edit' && 
+                              hoveredButton.elementType === type && 
+                              hoveredButton.elementId === id);
+          
+          // 绘制删除按钮
+          drawDeleteButton(ctx, deleteX, deleteY, isDeleteHovered || false);
+          
+          // 绘制编辑按钮
+          drawEditButton(ctx, editX, editY, isEditHovered || false);
         }
       } else if (type === "region") {
         const region = currentMap.regions.find(r => r.id === id)
-        if (region && region.path.length > 2) {
+        if (region && region.path.length > 2 && buttonPositions) {
+          const { deleteX, deleteY, editX, editY } = buttonPositions;
+          
+          // 绘制选中效果
           ctx.beginPath()
           ctx.moveTo(region.path[0].x, region.path[0].y)
           region.path.slice(1).forEach(point => {
@@ -886,19 +1032,45 @@ export function MapEditor({ projectId }: MapEditorProps) {
           ctx.closePath()
           ctx.stroke()
           
-          // 绘制删除选中元素的提示
+          // 获取中心位置
           const center = getPolygonCenter(region.path)
+          
+          // 绘制控制面板背景
           ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-          ctx.fillRect(center.x - 60, center.y - 20, 120, 20)
+          ctx.beginPath()
+          ctx.roundRect(center.x - 65, center.y - 50, 130, 30, 5)
+          ctx.fill()
+          
+          // 绘制拖动提示
           ctx.fillStyle = '#fff'
           ctx.font = '12px sans-serif'
           ctx.textAlign = 'center'
-          ctx.fillText('按 Delete 键删除', center.x, center.y - 5)
+          ctx.fillText('选择模式下可拖动', center.x, center.y - 30)
+          
+                     // 检查按钮是否处于悬停状态
+           const isDeleteHovered = !!(hoveredButton && 
+                                 hoveredButton.type === 'delete' && 
+                                 hoveredButton.elementType === type && 
+                                 hoveredButton.elementId === id);
+                                 
+           const isEditHovered = !!(hoveredButton && 
+                                hoveredButton.type === 'edit' && 
+                                hoveredButton.elementType === type && 
+                                hoveredButton.elementId === id);
+          
+          // 绘制删除按钮
+          drawDeleteButton(ctx, deleteX, deleteY, isDeleteHovered || false);
+          
+          // 绘制编辑按钮
+          drawEditButton(ctx, editX, editY, isEditHovered || false);
         }
       } else if (type === "mountain" && currentMap.terrainFeatures.mountains) {
         const index = parseInt(id)
-        if (!isNaN(index) && index < currentMap.terrainFeatures.mountains.length) {
+        if (!isNaN(index) && index < currentMap.terrainFeatures.mountains.length && buttonPositions) {
+          const { deleteX, deleteY } = buttonPositions;
           const mountain = currentMap.terrainFeatures.mountains[index]
+          
+          // 绘制选中效果
           ctx.beginPath()
           ctx.moveTo(mountain.x, mountain.y)
           ctx.lineTo(mountain.x - mountain.size/2, mountain.y + mountain.size)
@@ -906,21 +1078,36 @@ export function MapEditor({ projectId }: MapEditorProps) {
           ctx.closePath()
           ctx.stroke()
           
-          // 绘制删除选中元素的提示
+          // 绘制控制面板背景
           ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-          ctx.fillRect(mountain.x - 60, mountain.y - 20, 120, 20)
+          ctx.beginPath()
+          ctx.roundRect(mountain.x - 65, mountain.y - 50, 130, 30, 5)
+          ctx.fill()
+          
+          // 绘制拖动提示
           ctx.fillStyle = '#fff'
           ctx.font = '12px sans-serif'
           ctx.textAlign = 'center'
-          ctx.fillText('按 Delete 键删除', mountain.x, mountain.y - 5)
+          ctx.fillText('选择模式下可拖动', mountain.x, mountain.y - 30)
+          
+          // 检查按钮是否处于悬停状态
+          const isDeleteHovered = hoveredButton && 
+                                hoveredButton.type === 'delete' && 
+                                hoveredButton.elementType === type && 
+                                hoveredButton.elementId === id;
+          
+          // 绘制删除按钮
+          drawDeleteButton(ctx, deleteX, deleteY, isDeleteHovered || false);
         }
       } else if ((type === "water" || type === "forest" || type === "desert") && currentMap.terrainFeatures[type + "s" as keyof typeof currentMap.terrainFeatures]) {
         const terrainType = type + "s" as "waters" | "forests" | "deserts"
         const features = currentMap.terrainFeatures[terrainType]!
         const index = parseInt(id)
-        if (!isNaN(index) && index < features.length) {
+        if (!isNaN(index) && index < features.length && buttonPositions) {
+          const { deleteX, deleteY } = buttonPositions;
           const feature = features[index]
           if (feature.path && feature.path.length > 2) {
+            // 绘制选中效果
             ctx.beginPath()
             ctx.moveTo(feature.path[0].x, feature.path[0].y)
             feature.path.slice(1).forEach((point: {x: number, y: number}) => {
@@ -929,14 +1116,29 @@ export function MapEditor({ projectId }: MapEditorProps) {
             ctx.closePath()
             ctx.stroke()
             
-            // 绘制删除选中元素的提示
+            // 获取中心位置
             const center = getPolygonCenter(feature.path)
+            
+            // 绘制控制面板背景
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-            ctx.fillRect(center.x - 60, center.y - 20, 120, 20)
+            ctx.beginPath()
+            ctx.roundRect(center.x - 65, center.y - 50, 130, 30, 5)
+            ctx.fill()
+            
+            // 绘制拖动提示
             ctx.fillStyle = '#fff'
             ctx.font = '12px sans-serif'
             ctx.textAlign = 'center'
-            ctx.fillText('按 Delete 键删除', center.x, center.y - 5)
+            ctx.fillText('选择模式下可拖动', center.x, center.y - 30)
+            
+            // 检查按钮是否处于悬停状态
+            const isDeleteHovered = hoveredButton && 
+                                  hoveredButton.type === 'delete' && 
+                                  hoveredButton.elementType === type && 
+                                  hoveredButton.elementId === id;
+            
+            // 绘制删除按钮
+            drawDeleteButton(ctx, deleteX, deleteY, isDeleteHovered || false);
           }
         }
       }
@@ -1071,6 +1273,117 @@ export function MapEditor({ projectId }: MapEditorProps) {
     }
   }
   
+  // 绘制删除按钮
+  const drawDeleteButton = (ctx: CanvasRenderingContext2D, x: number, y: number, isHovered = false) => {
+    // 绘制按钮背景 - 使用渐变效果提升美观度
+    const radius = isHovered ? 16 : 15;
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    
+    if (isHovered) {
+      gradient.addColorStop(0, '#fb7185'); // 亮一些的红色
+      gradient.addColorStop(1, '#f43f5e');
+    } else {
+      gradient.addColorStop(0, '#f43f5e'); 
+      gradient.addColorStop(1, '#e11d48');
+    }
+    
+    ctx.fillStyle = gradient;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2;
+    
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 重置阴影设置
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    
+    // 绘制删除图标 (X)
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    
+    // 绘制X图标 - 更精致的线条
+    ctx.beginPath();
+    ctx.moveTo(x - 5, y - 5);
+    ctx.lineTo(x + 5, y + 5);
+    ctx.moveTo(x + 5, y - 5);
+    ctx.lineTo(x - 5, y + 5);
+    ctx.stroke();
+    
+    // 在删除按钮周围添加点击区域数据
+    return {
+      x,
+      y,
+      radius: radius + 2 // 扩大点击区域
+    }
+  }
+  
+  // 绘制编辑按钮
+  const drawEditButton = (ctx: CanvasRenderingContext2D, x: number, y: number, isHovered = false) => {
+    // 绘制按钮背景 - 使用渐变效果提升美观度
+    const radius = isHovered ? 16 : 15;
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    
+    if (isHovered) {
+      gradient.addColorStop(0, '#93c5fd'); // 亮一些的蓝色
+      gradient.addColorStop(1, '#60a5fa');
+    } else {
+      gradient.addColorStop(0, '#60a5fa');
+      gradient.addColorStop(1, '#3b82f6');
+    }
+    
+    ctx.fillStyle = gradient;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2;
+    
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 重置阴影设置
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    
+    // 绘制编辑图标 (铅笔)
+    ctx.fillStyle = 'white';
+    
+    // 绘制更精致的铅笔图标 - 放大约20%
+    ctx.beginPath();
+    // 铅笔主体
+    ctx.moveTo(x - 5, y + 5); // 左下
+    ctx.lineTo(x - 3, y + 7); // 铅笔底部
+    ctx.lineTo(x + 6, y - 2); // 铅笔顶部右侧
+    ctx.lineTo(x + 4, y - 4); // 铅笔顶部左侧
+    ctx.closePath();
+    ctx.fill();
+    
+    // 铅笔尖
+    ctx.beginPath();
+    ctx.moveTo(x + 4, y - 4);
+    ctx.lineTo(x + 6, y - 2);
+    ctx.lineTo(x + 7, y - 3);
+    ctx.closePath();
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fill();
+    
+    // 在编辑按钮周围添加点击区域数据
+    return {
+      x,
+      y,
+      radius: radius + 2 // 扩大点击区域
+    }
+  }
+  
   // 修改键盘监听，避免在输入框内按退格键删除元素
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1156,6 +1469,75 @@ export function MapEditor({ projectId }: MapEditorProps) {
     }
   }, [activeMap])
   
+  // 打开名称编辑器
+  const openNameEditor = (element: SelectedElement) => {
+    const currentMap = getCurrentMap();
+    if (!currentMap) return;
+    
+    // 获取Canvas的位置信息以计算正确的屏幕坐标
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const canvasLeft = rect.left;
+    const canvasTop = rect.top;
+    
+    let name = "";
+    let position = {x: 0, y: 0};
+    
+    if (element.type === "location") {
+      const location = currentMap.locations.find(loc => loc.id === element.id);
+      if (location) {
+        name = location.name;
+        position = {
+          x: canvasLeft + location.x,
+          y: canvasTop + location.y - 80 // 在元素上方显示，避免遮挡
+        };
+      }
+    } else if (element.type === "region") {
+      const region = currentMap.regions.find(r => r.id === element.id);
+      if (region && region.path.length > 2) {
+        name = region.name;
+        const center = getPolygonCenter(region.path);
+        position = {
+          x: canvasLeft + center.x,
+          y: canvasTop + center.y - 80 // 在元素上方显示，避免遮挡
+        };
+      }
+    }
+    
+    if (name !== undefined && position.x && position.y) {
+      // 延迟显示以确保其他UI元素已经更新
+      setTimeout(() => {
+        setEditingName(name);
+        setNameEditorPosition(position);
+        setShowNameEditor(true);
+        
+        // 如果编辑器超出屏幕顶部，则调整位置到元素下方
+        if (position.y < 150) {
+          if (element.type === "location") {
+            const location = currentMap.locations.find(loc => loc.id === element.id);
+            if (location) {
+              setNameEditorPosition({
+                x: canvasLeft + location.x,
+                y: canvasTop + location.y + 50 // 改为元素下方
+              });
+            }
+          } else if (element.type === "region") {
+            const region = currentMap.regions.find(r => r.id === element.id);
+            if (region && region.path.length > 2) {
+              const center = getPolygonCenter(region.path);
+              setNameEditorPosition({
+                x: canvasLeft + center.x,
+                y: canvasTop + center.y + 50 // 改为元素下方
+              });
+            }
+          }
+        }
+      }, 50);
+    }
+  };
+  
   // 添加更新元素名称的函数
   const updateElementName = (name: string) => {
     if (!selectedElement || !showNameEditor) return
@@ -1203,6 +1585,154 @@ export function MapEditor({ projectId }: MapEditorProps) {
       </div>
     )
   }
+  
+  // 鼠标按下事件处理
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (viewMode === "preview" || drawingTool !== "select" || !selectedElement || isDrawingRegion) return;
+    
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    setIsDragging(true);
+    setDragStart({x, y});
+    
+    // 防止拖动过程中选择其他元素
+    e.preventDefault();
+  };
+  
+  // 鼠标移动事件处理
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas || viewMode === "preview") return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // 处理按钮悬停状态
+    if (selectedElement && drawingTool === "select" && !isDragging) {
+      // 检查是否悬停在删除按钮上
+      const isHoveringDeleteButton = checkDeleteButtonHover(x, y);
+      // 检查是否悬停在编辑按钮上
+      const isHoveringEditButton = checkEditButtonHover(x, y);
+      
+      if (isHoveringDeleteButton) {
+        setHoveredButton({
+          type: 'delete',
+          elementType: selectedElement.type,
+          elementId: selectedElement.id
+        });
+        canvas.style.cursor = 'pointer';
+      } else if (isHoveringEditButton) {
+        setHoveredButton({
+          type: 'edit',
+          elementType: selectedElement.type,
+          elementId: selectedElement.id
+        });
+        canvas.style.cursor = 'pointer';
+      } else {
+        setHoveredButton(null);
+        canvas.style.cursor = isDragging ? 'grabbing' : 'grab';
+      }
+      
+      renderCanvas();
+    }
+    
+    // 处理拖动逻辑
+    if (!isDragging || !selectedElement) return;
+    
+    const deltaX = x - dragStart.x;
+    const deltaY = y - dragStart.y;
+    
+    // 根据选中元素类型更新位置
+    const currentMap = getCurrentMap();
+    if (!currentMap) return;
+    
+    let updatedMap: Partial<MapData> = {};
+    
+    if (selectedElement.type === "location") {
+      const updatedLocations = currentMap.locations.map(location => 
+        location.id === selectedElement.id 
+          ? { ...location, x: location.x + deltaX, y: location.y + deltaY } 
+          : location
+      );
+      updatedMap = { locations: updatedLocations };
+    } else if (selectedElement.type === "region") {
+      const region = currentMap.regions.find(r => r.id === selectedElement.id);
+      if (region) {
+        const updatedRegions = currentMap.regions.map(r => 
+          r.id === selectedElement.id 
+            ? { 
+                ...r, 
+                path: r.path.map(point => ({ 
+                  x: point.x + deltaX, 
+                  y: point.y + deltaY 
+                }))
+              } 
+            : r
+        );
+        updatedMap = { regions: updatedRegions };
+      }
+    } else if (selectedElement.type === "mountain" && currentMap.terrainFeatures.mountains) {
+      const index = parseInt(selectedElement.id);
+      if (!isNaN(index) && index < currentMap.terrainFeatures.mountains.length) {
+        const updatedMountains = [...currentMap.terrainFeatures.mountains];
+        updatedMountains[index] = {
+          ...updatedMountains[index],
+          x: updatedMountains[index].x + deltaX,
+          y: updatedMountains[index].y + deltaY
+        };
+        updatedMap = {
+          terrainFeatures: {
+            ...currentMap.terrainFeatures,
+            mountains: updatedMountains
+          }
+        };
+      }
+    } else if (["water", "forest", "desert"].includes(selectedElement.type) && currentMap.terrainFeatures[selectedElement.type + "s" as keyof typeof currentMap.terrainFeatures]) {
+      const terrainType = selectedElement.type + "s" as "waters" | "forests" | "deserts";
+      const features = currentMap.terrainFeatures[terrainType]!;
+      const index = parseInt(selectedElement.id);
+      
+      if (!isNaN(index) && index < features.length) {
+        const updatedFeatures = [...features];
+        updatedFeatures[index] = {
+          ...updatedFeatures[index],
+          path: updatedFeatures[index].path.map((point: {x: number, y: number}) => ({
+            x: point.x + deltaX,
+            y: point.y + deltaY
+          }))
+        };
+        
+        updatedMap = {
+          terrainFeatures: {
+            ...currentMap.terrainFeatures,
+            [terrainType]: updatedFeatures
+          }
+        };
+      }
+    }
+    
+    // 更新地图
+    updateCurrentMap(updatedMap);
+    
+    // 更新拖动起点
+    setDragStart({x, y});
+    
+    // 重新渲染
+    renderCanvas();
+  };
+  
+  // 鼠标释放事件处理
+  const handleMouseUp = () => {
+    if (isDragging) {
+      setIsDragging(false);
+    }
+  };
   
   return (
     <div className="rounded-lg border overflow-hidden bg-card relative">
@@ -1480,11 +2010,16 @@ export function MapEditor({ projectId }: MapEditorProps) {
                       width={map.width} 
                       height={map.height}
                       onClick={handleCanvasClick}
+                      onMouseDown={handleMouseDown}
+                      onMouseMove={handleMouseMove}
+                      onMouseUp={handleMouseUp}
+                      onMouseLeave={handleMouseUp}
                       className="border mx-auto max-w-full"
                       style={{
                         cursor: viewMode === "edit" ? (
+                          isDragging ? "grabbing" :
                           drawingTool === "location" ? "crosshair" : 
-                          drawingTool === "select" ? "default" : "pointer"
+                          drawingTool === "select" ? (selectedElement ? "grab" : "default") : "pointer"
                         ) : "default"
                       }}
                     />
@@ -1559,47 +2094,94 @@ export function MapEditor({ projectId }: MapEditorProps) {
       {/* 名称编辑器浮层 */}
       {showNameEditor && (
         <div 
-          className="fixed z-50 bg-white rounded-md shadow-md p-2"
+          className="fixed z-50 animate-in fade-in slide-in-from-top-5 duration-200 ease-out"
           style={{
             left: `${nameEditorPosition.x}px`,
             top: `${nameEditorPosition.y}px`,
             transform: 'translate(-50%, 0)'
           }}
         >
-          <div className="flex items-center space-x-2">
-            <Input
-              type="text"
-              value={editingName}
-              onChange={(e) => updateElementName(e.target.value)}
-              onKeyDown={(e) => {
-                // 阻止键盘事件冒泡，防止触发全局监听器
-                e.stopPropagation()
-              }}
-              className="w-48 h-8 text-sm"
-              placeholder={selectedElement?.type === "location" ? "地点名称" : "区域名称"}
-              autoFocus
-            />
-            <Button 
-              size="sm" 
-              variant="outline" 
-              className="h-8 w-8 p-0" 
-              onClick={handleNameEditorClose}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
+          {/* 小三角形指示箭头 */}
+          <div
+            className="absolute w-3 h-3 bg-white rotate-45 border-t border-l border-border"
+            style={{ 
+              left: '50%', 
+              bottom: '-6px', 
+              marginLeft: '-6px',
+              display: nameEditorPosition.y > 150 ? 'block' : 'none'
+            }}
+          />
+          {/* 上方箭头 */}
+          <div
+            className="absolute w-3 h-3 bg-white rotate-45 border-b border-r border-border"
+            style={{ 
+              left: '50%', 
+              top: '-6px', 
+              marginLeft: '-6px',
+              display: nameEditorPosition.y <= 150 ? 'block' : 'none'
+            }}
+          />
+          
+          {/* 卡片主体 */}
+          <div className="relative bg-white dark:bg-card border border-border rounded-lg shadow-xl p-3">
+            <div className="space-y-2">
+              <div className="flex justify-between items-center mb-1">
+                <div className="flex items-center gap-1.5">
+                  {selectedElement?.type === "location" ? (
+                    <MapPin className="h-3.5 w-3.5 text-primary" />
+                  ) : (
+                    <Map className="h-3.5 w-3.5 text-primary" />
+                  )}
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {selectedElement?.type === "location" ? "编辑地点名称" : "编辑区域名称"}
+                  </span>
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="h-6 w-6 p-0 rounded-full hover:bg-muted" 
+                  onClick={handleNameEditorClose}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 6L6 18M6 6l12 12"></path>
+                  </svg>
+                </Button>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Input
+                  type="text"
+                  value={editingName}
+                  onChange={(e) => updateElementName(e.target.value)}
+                  onKeyDown={(e) => {
+                    // 阻止键盘事件冒泡，防止触发全局监听器
+                    e.stopPropagation();
+                    // 按下回车键保存
+                    if (e.key === 'Enter') {
+                      handleNameEditorClose();
+                    }
+                  }}
+                  className="w-60 h-9 text-sm"
+                  placeholder={selectedElement?.type === "location" ? "输入地点名称" : "输入区域名称"}
+                  autoFocus
                 />
-              </svg>
-            </Button>
+                <Button 
+                  size="sm" 
+                  className="h-9 px-4" 
+                  onClick={handleNameEditorClose}
+                >
+                  确定
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -104,7 +104,7 @@ export async function saveProjectDraft(id: string, draft: Record<string, any>) {
   if (!res.ok) throw new Error('保存项目草稿失败')
   const data = await res.json()
   return data.data as Project
-}
+} 
 
 // 获取项目地图
 export async function fetchProjectMap(id: string) {
