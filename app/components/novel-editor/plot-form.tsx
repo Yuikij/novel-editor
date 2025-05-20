@@ -11,6 +11,7 @@ interface PlotFormProps {
   onSave: (plot: PlotElement) => void
   onCancel: () => void
   chapters: Chapter[]
+  projectId?: string
 }
 
 export const plotSchema = z.object({
@@ -30,7 +31,8 @@ export default function PlotForm({
   plot,
   onSave,
   onCancel,
-  chapters
+  chapters,
+  projectId
 }: PlotFormProps) {
   const isEditing = !!plot
 
@@ -64,11 +66,15 @@ export default function PlotForm({
   // 获取角色列表
   useEffect(() => {
     setIsLoadingCharacters(true)
-    fetchCharactersPage({ page: 1, pageSize: 100 })
+    fetchCharactersPage({ 
+      page: 1, 
+      pageSize: 100, 
+      ...(projectId ? { projectId } : {})
+    })
       .then(res => setCharacters(res.data.records))
       .catch(err => setCharacterError(err.message || "角色加载失败"))
       .finally(() => setIsLoadingCharacters(false))
-  }, [])
+  }, [projectId])
 
   // 通用表单变更
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {

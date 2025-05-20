@@ -1432,6 +1432,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               onSave={handleSavePlot}
               onCancel={handleCancelPlotModal}
               chapters={chapters}
+              projectId={params.id}
             />
           </div>
         </div>

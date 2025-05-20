@@ -44,7 +44,13 @@ export default function PlotsPage() {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await fetchPlotsPage({ page: 1, pageSize: 100 })
+      // Get the active project ID from localStorage if available
+      const activeProjectId = localStorage.getItem('activeProjectId')
+      const res = await fetchPlotsPage({ 
+        page: 1, 
+        pageSize: 100,
+        ...(activeProjectId ? { projectId: activeProjectId } : {})
+      })
       setPlots(res.data.records)
     } catch (err: any) {
       setError(err.message || "加载失败")
@@ -420,6 +426,7 @@ export default function PlotsPage() {
               onSave={handleSavePlot}
               onCancel={handleCancelModal}
               chapters={[]}
+              projectId={localStorage.getItem('activeProjectId') || undefined}
             />
           </div>
         </div>

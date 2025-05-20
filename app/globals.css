@@ -33,6 +33,9 @@
     --ring: 222.2 84% 4.9%;
 
     --radius: 0.5rem;
+    
+    --brand-gradient-start: #9333ea;
+    --brand-gradient-end: #ec4899;
   }
 
   .dark {
@@ -73,6 +76,48 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Homepage animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  25% { transform: translateY(-10px) translateX(10px); }
+  50% { transform: translateY(-20px) translateX(-8px); }
+  75% { transform: translateY(-12px) translateX(-15px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.9; }
+}
+
+.animate-float {
+  animation: float linear infinite;
+}
+
+.animate-shimmer {
+  background-size: 200% auto;
+  animation: shimmer 3s infinite;
+}
+
+.animate-gradient {
+  background-size: 200% auto;
+  animation: shimmer 8s infinite;
+}
+
+.animate-gradient-reverse {
+  background-size: 200% auto;
+  animation: shimmer 8s infinite reverse;
+}
+
+.perspective {
+  perspective: 1000px;
 }
 
 /* Draft Editor: Markdown textarea styling */
