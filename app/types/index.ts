@@ -10,6 +10,7 @@ export interface NovelProject {
   coverGradient: string[]
   metadata: NovelMetadata
   worldId?: string
+  templateId?: string
 }
 
 export interface NovelMetadata {
@@ -20,6 +21,22 @@ export interface NovelMetadata {
   status: 'draft' | 'in-progress' | 'completed' | 'published'
   highlights?: string[]
   writingRequirements?: string[]
+}
+
+// Entry Types
+export interface Entry {
+  id: string
+  name: string
+  tags: string
+  description: string
+}
+
+// Template Types
+export interface Template {
+  id: string
+  name: string
+  tags: string
+  content: string
 }
  
 // Character Types
@@ -83,6 +100,7 @@ export interface Chapter {
   targetWordCount?: number
   notes?: string
   type?: string
+  templateId?: string
 }
 
 // Plot and Outline Types
@@ -101,7 +119,9 @@ export interface PlotElement {
   chapterId?: string
   status: string
   characterIds?: string[]
+  itemIds?: string[]
   type?: string
+  templateId?: string
   completionPercentage?: number
   wordCountGoal?: number
 }

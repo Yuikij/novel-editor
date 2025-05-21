@@ -11,6 +11,8 @@ export interface Plot {
   updatedAt?: string
   chapterId?: string
   characterIds?: string[]
+  itemIds?: string[]
+  templateId?: string
 }
 
 function mapFromBackend(plot: any) {

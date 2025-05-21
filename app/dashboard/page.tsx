@@ -18,6 +18,7 @@ import { Button } from "@/app/components/ui/button"
 import NovelSettingsForm from "@/app/components/novel-editor/novel-settings-form"
 import type { NovelProject, WorldBuilding } from "@/app/types"
 import { useLanguage } from "@/app/lib/i18n/language-context"
+import DashboardSidebar from "@/app/components/layout/dashboard-sidebar"
 
 const initialProjects: NovelProject[] = [
   {
@@ -156,38 +157,7 @@ export default function DashboardPage() {
     <div className="flex min-h-screen flex-col">
       <DashboardHeader />
       <div className="container flex-1 items-start py-6 md:grid md:grid-cols-[220px_1fr] md:gap-6 lg:grid-cols-[240px_1fr] lg:gap-10">
-        <aside className="fixed top-14 z-30 -ml-2 hidden h-[calc(100vh-3.5rem)] w-full shrink-0 overflow-y-auto border-r md:sticky md:block">
-          <div className="h-full py-6 pl-8 pr-6">
-            <div className="flex flex-col gap-2">
-              <h2 className="mb-2 px-2 text-lg font-semibold tracking-tight">
-                {t('editor.title')}
-              </h2>
-              <nav className="flex flex-col gap-1">
-                <Link
-                  href="/dashboard"
-                  className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-accent-foreground"
-                >
-                  <DocumentIcon className="h-5 w-5" />
-                  {t('nav.projects')}
-                </Link>
-                <Link
-                  href="/dashboard/worlds"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <WorldIcon className="h-5 w-5" />
-                  {t('nav.worlds')}
-                </Link>
-                {/* <Link
-                  href="/dashboard/analysis"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <AnalysisIcon className="h-5 w-5" />
-                  {t('nav.analysis')}
-                </Link> */}
-              </nav>
-            </div>
-          </div>
-        </aside>
+        <DashboardSidebar />
         <main className="w-full">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold tracking-tight">{t('nav.projects')}</h1>

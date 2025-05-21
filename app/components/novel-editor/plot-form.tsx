@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/app/components/ui/button"
-import type { PlotElement, Chapter, Character } from "@/app/types"
+import type { PlotElement, Chapter, Character, Entry, Template } from "@/app/types"
 import { z } from "zod"
 import { fetchCharactersPage } from "@/app/lib/api/character"
+import { fetchEntriesPage } from "@/app/lib/api/entry"
+import { fetchTemplatesPage } from "@/app/lib/api/template"
+import { useLanguage } from '@/app/lib/i18n/language-context'
 
 interface PlotFormProps {
   plot?: PlotElement
@@ -22,6 +25,8 @@ export const plotSchema = z.object({
   status: z.string().min(1, "状态不能为空"),
   chapterId: z.string().optional(),
   characterIds: z.array(z.string()).optional(),
+  itemIds: z.array(z.string()).optional(),
+  templateId: z.string().optional(),
   type: z.string().optional(),
   completionPercentage: z.number().min(0).max(100).optional(),
   wordCountGoal: z.number().min(0).optional(),
@@ -34,6 +39,7 @@ export default function PlotForm({
   chapters,
   projectId
 }: PlotFormProps) {
+  const { t } = useLanguage();
   const isEditing = !!plot
 
   // 角色列表相关 state
@@ -41,7 +47,17 @@ export default function PlotForm({
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(false)
   const [characterError, setCharacterError] = useState<string | null>(null)
 
-  // 表单 state，包含 characterIds
+  // 条目列表相关 state
+  const [entries, setEntries] = useState<Entry[]>([])
+  const [isLoadingEntries, setIsLoadingEntries] = useState(false)
+  const [entriesError, setEntriesError] = useState<string | null>(null)
+
+  // 模板列表相关 state
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
+  const [templatesError, setTemplatesError] = useState<string | null>(null)
+
+  // 表单 state，包含 characterIds, itemIds 和 templateId
   const [form, setForm] = useState<PlotElement>({
     id: plot?.id || `plot-${Date.now()}`,
     title: plot?.title || "",
@@ -50,6 +66,8 @@ export default function PlotForm({
     status: plot?.status || "未开始",
     chapterId: plot?.chapterId || (chapters[0]?.id ?? ""),
     characterIds: plot?.characterIds || [],
+    itemIds: plot?.itemIds || [],
+    templateId: plot?.templateId || "",
     type: plot?.type || "",
     completionPercentage: plot?.completionPercentage || 0,
     wordCountGoal: plot?.wordCountGoal || 0,
@@ -76,21 +94,74 @@ export default function PlotForm({
       .finally(() => setIsLoadingCharacters(false))
   }, [projectId])
 
+  // 获取条目列表
+  useEffect(() => {
+    setIsLoadingEntries(true)
+    fetchEntriesPage({ 
+      page: 1, 
+      pageSize: 100 
+    })
+      .then(res => setEntries(res.data.records))
+      .catch(err => setEntriesError(err.message || "条目加载失败"))
+      .finally(() => setIsLoadingEntries(false))
+  }, [])
+
+  // 获取模板列表
+  useEffect(() => {
+    setIsLoadingTemplates(true)
+    fetchTemplatesPage({ 
+      page: 1, 
+      pageSize: 100 
+    })
+      .then(res => setTemplates(res.data.records))
+      .catch(err => setTemplatesError(err.message || "模板加载失败"))
+      .finally(() => setIsLoadingTemplates(false))
+  }, [])
+
   // 通用表单变更
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type, multiple, options } = e.target as HTMLInputElement & HTMLSelectElement
-    if (name === "characterIds" && multiple) {
+    if ((name === "characterIds" || name === "itemIds") && multiple) {
       // 多选下拉处理
       const selected = Array.from(options)
         .filter(option => option.selected)
         .map(option => option.value)
-      setForm({ ...form, characterIds: selected })
+      setForm({ ...form, [name]: selected })
     } else if (e.target instanceof HTMLInputElement && e.target.type === "number") {
       setForm({ ...form, [name]: Number(value) })
     } else {
       setForm({ ...form, [name]: value })
     }
   }
+
+  // 选择模板后填充模板内容
+  const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const templateId = e.target.value;
+    setForm(prev => ({ ...prev, templateId }));
+
+    if (templateId) {
+      const selectedTemplate = templates.find(t => t.id === templateId);
+      if (selectedTemplate) {
+        // 根据模板内容填充表单 (可以根据需要调整填充的字段)
+        try {
+          // 尝试解析模板内容
+          const templateData = JSON.parse(selectedTemplate.content);
+          setForm(prev => ({
+            ...prev,
+            type: templateData.type || prev.type,
+            description: templateData.description || prev.description,
+            // 可以添加其他你希望从模板中获取的字段
+          }));
+        } catch (e) {
+          // 如果内容不是JSON, 可能是纯文本模板，直接设置为描述
+          setForm(prev => ({
+            ...prev,
+            description: selectedTemplate.content || prev.description
+          }));
+        }
+      }
+    }
+  };
 
   // 提交
   const handleSubmit = (e: React.FormEvent) => {
@@ -140,26 +211,52 @@ export default function PlotForm({
             </select>
           </div>
         </div>
-        <div>
-          <label htmlFor="type" className="block text-sm font-medium">结构类型</label>
-          <input
-            id="type"
-            name="type"
-            list="type-options"
-            value={form.type}
-            onChange={handleFormChange}
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="选择或输入结构类型 (可选)"
-          />
-          <datalist id="type-options">
-            {typeOptions.map(option => (
-              <option key={option} value={option} />
-            ))}
-          </datalist>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="type" className="block text-sm font-medium">结构类型</label>
+            <input
+              id="type"
+              name="type"
+              list="type-options"
+              value={form.type}
+              onChange={handleFormChange}
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              placeholder="选择或输入结构类型 (可选)"
+            />
+            <datalist id="type-options">
+              {typeOptions.map(option => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label htmlFor="templateId" className="block text-sm font-medium">
+              使用模板
+            </label>
+            {isLoadingTemplates ? (
+              <div className="text-sm text-muted-foreground">模板加载中...</div>
+            ) : templatesError ? (
+              <div className="text-sm text-destructive">{templatesError}</div>
+            ) : (
+              <select
+                id="templateId"
+                name="templateId"
+                value={form.templateId || ""}
+                onChange={handleTemplateChange}
+                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">-- 选择模板 --</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
+            )}
+            <div className="text-xs text-muted-foreground mt-1">选择模板后将自动填充部分内容</div>
+          </div>
         </div>
         <div>
           <label htmlFor="characterIds" className="block text-sm font-medium">
-            关联角色
+            {t('project.plot.related_characters')}
           </label>
           {isLoadingCharacters ? (
             <div className="text-sm text-muted-foreground">角色加载中...</div>
@@ -176,6 +273,30 @@ export default function PlotForm({
             >
               {characters.map((char) => (
                 <option key={char.id} value={char.id}>{char.name}</option>
+              ))}
+            </select>
+          )}
+          <div className="text-xs text-muted-foreground mt-1">按住 Ctrl/Command 可多选</div>
+        </div>
+        <div>
+          <label htmlFor="itemIds" className="block text-sm font-medium">
+            {t('project.plot.related_entries')}
+          </label>
+          {isLoadingEntries ? (
+            <div className="text-sm text-muted-foreground">条目加载中...</div>
+          ) : entriesError ? (
+            <div className="text-sm text-destructive">{entriesError}</div>
+          ) : (
+            <select
+              id="itemIds"
+              name="itemIds"
+              multiple
+              value={form.itemIds || []}
+              onChange={handleFormChange}
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-32"
+            >
+              {entries.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
               ))}
             </select>
           )}

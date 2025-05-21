@@ -14,6 +14,7 @@ export interface Project {
   writingRequirements?: string[]
   status?: string
   worldId?: string
+  templateId?: string
   createdAt?: string
   updatedAt?: string
   draft?: Record<string, any>

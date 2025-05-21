@@ -10,6 +10,7 @@ import WorldForm from "@/app/components/novel-editor/world-form"
 import type { WorldBuilding, WorldElement } from "@/app/types"
 import { fetchWorldsPage, createWorld, updateWorld, deleteWorld, World } from '@/app/lib/api/world';
 import { useLanguage } from "@/app/lib/i18n/language-context"
+import DashboardSidebar from "@/app/components/layout/dashboard-sidebar"
 
 const initialWorlds: WorldBuilding[] = [
   {
@@ -153,81 +154,7 @@ export default function WorldsPage() {
     <div className="flex min-h-screen flex-col">
       <DashboardHeader />
       <div className="container flex-1 items-start py-6 md:grid md:grid-cols-[220px_1fr] md:gap-6 lg:grid-cols-[240px_1fr] lg:gap-10">
-        <aside className="fixed top-14 z-30 -ml-2 hidden h-[calc(100vh-3.5rem)] w-full shrink-0 overflow-y-auto border-r md:sticky md:block">
-          <div className="h-full py-6 pl-8 pr-6">
-            <div className="flex flex-col gap-2">
-              <h2 className="mb-2 px-2 text-lg font-semibold tracking-tight">
-                {t('editor.title')}
-              </h2>
-              <nav className="flex flex-col gap-1">
-                <Link
-                  href="/dashboard"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" />
-                    <path d="m3 9 2.45-4.9A2 2 0 0 1 7.24 3h9.52a2 2 0 0 1 1.8 1.1L21 9" />
-                    <path d="M12 3v6" />
-                  </svg>
-                  {t('nav.projects')}
-                </Link>
-                <Link
-                  href="/dashboard/worlds"
-                  className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-accent-foreground"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-                    <path d="M2 12h20" />
-                  </svg>
-                  {t('nav.worlds')}
-                </Link>
-                {/* <Link
-                  href="/dashboard/analysis"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M2 11h7v9H2zm7-9h7v18H9zm7 3h7v6h-7z" />
-                  </svg>
-                  {t('nav.analysis')}
-                </Link> */}
-              </nav>
-            </div>
-          </div>
-        </aside>
+        <DashboardSidebar />
         <main className="w-full">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold tracking-tight">

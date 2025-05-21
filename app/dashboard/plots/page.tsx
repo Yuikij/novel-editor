@@ -10,6 +10,7 @@ import PlotForm from "@/app/components/novel-editor/plot-form"
 import type { Plot } from "@/app/lib/api/plot"
 import type { PlotElement } from "@/app/types"
 import { fetchPlotsPage, createPlot, updatePlot, deletePlot, batchDeletePlots, autoExpandPlots } from "@/app/lib/api/plot"
+import { useLanguage } from '@/app/lib/i18n/language-context'
 
 // Helper to map Plot to PlotElement
 function mapPlotToPlotElement(plot?: Plot): PlotElement | undefined {
@@ -20,11 +21,15 @@ function mapPlotToPlotElement(plot?: Plot): PlotElement | undefined {
     description: plot.description ?? "",
     position: typeof plot.plotOrder === "number" ? plot.plotOrder : 1,
     chapterId: plot.chapterId,
+    characterIds: plot.characterIds,
+    itemIds: plot.itemIds,
+    templateId: plot.templateId,
     status: "planned", // or infer from plot if available
   };
 }
 
 export default function PlotsPage() {
+  const { t } = useLanguage();
   const [plots, setPlots] = useState<Plot[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -377,6 +382,18 @@ export default function PlotsPage() {
                     </div>
                     <div className="mt-2 text-sm text-muted-foreground">{plot.description}</div>
                     <div className="mt-2 text-xs text-muted-foreground">类型: {plot.type ?? '-'}</div>
+                    
+                    {plot.characterIds && plot.characterIds.length > 0 && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {t('project.plot.related_characters_count', { count: String(plot.characterIds.length) })}
+                      </div>
+                    )}
+                    
+                    {plot.itemIds && plot.itemIds.length > 0 && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {t('project.plot.related_entries_count', { count: String(plot.itemIds.length) })}
+                      </div>
+                    )}
                   </div>
                   <div className="flex justify-end gap-2 p-4 pt-0">
                     <Button variant="ghost" size="sm" onClick={() => handleEditPlot(plot)}>编辑</Button>

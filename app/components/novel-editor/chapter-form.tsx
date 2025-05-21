@@ -1,6 +1,9 @@
-import { useState } from "react"
+"use client"
+
+import { useState, useEffect } from "react"
 import { Button } from "@/app/components/ui/button"
-import type { Chapter } from "@/app/types"
+import type { Chapter, Template } from "@/app/types"
+import { fetchTemplatesPage } from "@/app/lib/api/template"
 
 interface ChapterFormProps {
   chapter?: Chapter
@@ -20,7 +23,25 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
     targetWordCount: chapter?.targetWordCount || undefined,
     notes: chapter?.notes || "",
     type: chapter?.type || "",
+    templateId: chapter?.templateId || ""
   })
+
+  // 模板列表相关 state
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
+  const [templatesError, setTemplatesError] = useState<string | null>(null)
+
+  // 获取模板列表
+  useEffect(() => {
+    setIsLoadingTemplates(true)
+    fetchTemplatesPage({ 
+      page: 1, 
+      pageSize: 100 
+    })
+      .then(res => setTemplates(res.data.records))
+      .catch(err => setTemplatesError(err.message || "模板加载失败"))
+      .finally(() => setIsLoadingTemplates(false))
+  }, [])
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm({
@@ -28,6 +49,36 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
       [e.target.name]: e.target.value
     })
   }
+
+  // 选择模板后填充模板内容
+  const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const templateId = e.target.value;
+    setForm(prev => ({ ...prev, templateId }));
+
+    if (templateId) {
+      const selectedTemplate = templates.find(t => t.id === templateId);
+      if (selectedTemplate) {
+        // 根据模板内容填充表单
+        try {
+          // 尝试解析模板内容
+          const templateData = JSON.parse(selectedTemplate.content);
+          setForm(prev => ({
+            ...prev,
+            type: templateData.type || prev.type,
+            summary: templateData.summary || prev.summary,
+            notes: templateData.notes || prev.notes,
+            // 可以添加其他你希望从模板中获取的字段
+          }));
+        } catch (e) {
+          // 如果内容不是JSON, 可能是纯文本模板
+          setForm(prev => ({
+            ...prev,
+            content: selectedTemplate.content || prev.content
+          }));
+        }
+      }
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -77,22 +128,48 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
             />
           </div>
         </div>
-        <div>
-          <label htmlFor="type" className="block text-sm font-medium">结构类型</label>
-          <input
-            id="type"
-            name="type"
-            list="type-options"
-            value={form.type}
-            onChange={handleFormChange}
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="选择或输入结构类型 (可选)"
-          />
-          <datalist id="type-options">
-            {typeOptions.map(option => (
-              <option key={option} value={option} />
-            ))}
-          </datalist>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="type" className="block text-sm font-medium">结构类型</label>
+            <input
+              id="type"
+              name="type"
+              list="type-options"
+              value={form.type}
+              onChange={handleFormChange}
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              placeholder="选择或输入结构类型 (可选)"
+            />
+            <datalist id="type-options">
+              {typeOptions.map(option => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label htmlFor="templateId" className="block text-sm font-medium">
+              使用模板
+            </label>
+            {isLoadingTemplates ? (
+              <div className="text-sm text-muted-foreground">模板加载中...</div>
+            ) : templatesError ? (
+              <div className="text-sm text-destructive">{templatesError}</div>
+            ) : (
+              <select
+                id="templateId"
+                name="templateId"
+                value={form.templateId || ""}
+                onChange={handleTemplateChange}
+                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">-- 选择模板 --</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
+            )}
+            <div className="text-xs text-muted-foreground mt-1">选择模板后将自动填充部分内容</div>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>

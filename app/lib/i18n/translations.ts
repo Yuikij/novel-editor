@@ -35,6 +35,14 @@ export const translations: Translations = {
     "zh-CN": "世界",
     "en-US": "Worlds"
   },
+  "nav.entries": {
+    "zh-CN": "条目",
+    "en-US": "Entries"
+  },
+  "nav.templates": {
+    "zh-CN": "模板",
+    "en-US": "Templates"
+  },
   "nav.analysis": {
     "zh-CN": "分析",
     "en-US": "Analysis"
@@ -336,6 +344,22 @@ export const translations: Translations = {
   "project.plot.count": {
     "zh-CN": "个情节",
     "en-US": "plots"
+  },
+  "project.plot.related_characters": {
+    "zh-CN": "关联角色",
+    "en-US": "Related Characters"
+  },
+  "project.plot.related_entries": {
+    "zh-CN": "关联条目",
+    "en-US": "Related Entries"
+  },
+  "project.plot.related_characters_count": {
+    "zh-CN": "关联角色: {count} 个",
+    "en-US": "Related Characters: {count}"
+  },
+  "project.plot.related_entries_count": {
+    "zh-CN": "关联条目: {count} 个",
+    "en-US": "Related Entries: {count}"
   },
   "project.outline.title": {
     "zh-CN": "故事大纲",

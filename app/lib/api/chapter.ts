@@ -11,6 +11,7 @@ export interface Chapter {
   notes?: string
   wordCountGoal?: number
   wordCount?: number
+  templateId?: string
   createdAt?: string
   updatedAt?: string
   content?: string // 前端本地用，后端无

@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/app/components/ui/button"
-import type { NovelProject, NovelMetadata, WorldBuilding } from "@/app/types"
+import type { NovelProject, NovelMetadata, WorldBuilding, Template } from "@/app/types"
 import { createProject, updateProject, Project } from '@/app/lib/api/project'
 import { API_BASE_URL } from '@/app/lib/config/env'
+import { fetchTemplatesPage } from '@/app/lib/api/template'
 
 // Define the structure for the AI name suggestion
 interface NameSuggestion {
@@ -35,6 +36,23 @@ export default function NovelSettingsForm({
   worlds
 }: NovelSettingsFormProps) {
   const isEditing = !!project
+  
+  // 模板列表相关 state
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
+  const [templatesError, setTemplatesError] = useState<string | null>(null)
+
+  // 获取模板列表
+  useEffect(() => {
+    setIsLoadingTemplates(true)
+    fetchTemplatesPage({ 
+      page: 1, 
+      pageSize: 100 
+    })
+      .then(res => setTemplates(res.data.records))
+      .catch(err => setTemplatesError(err.message || "模板加载失败"))
+      .finally(() => setIsLoadingTemplates(false))
+  }, [])
   
   // 添加 useEffect 来检查编辑时的项目数据
   useEffect(() => {
@@ -77,7 +95,7 @@ export default function NovelSettingsForm({
     }
   }, [project, isEditing]); // 依赖于 project 和 isEditing
   
-  const [form, setForm] = useState<Omit<NovelProject, "id" | "createdAt" | "updatedAt"> & { worldId?: string }>(() => {
+  const [form, setForm] = useState<Omit<NovelProject, "id" | "createdAt" | "updatedAt"> & { worldId?: string, templateId?: string }>(() => {
     const initialMetadata: NovelMetadata = {
       synopsis: project?.metadata?.synopsis || "",
       tags: project?.metadata?.tags || [],
@@ -95,7 +113,8 @@ export default function NovelSettingsForm({
       type: project?.type || "",
       coverGradient: project?.coverGradient || ["#4f46e5", "#818cf8"],
       metadata: initialMetadata,
-      worldId: project?.worldId || (worlds[0]?.id ?? "")
+      worldId: project?.worldId || (worlds[0]?.id ?? ""),
+      templateId: project?.templateId || ""
     };
   })
   
@@ -247,6 +266,42 @@ export default function NovelSettingsForm({
     }
   }
 
+  // 选择模板后填充模板内容
+  const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const templateId = e.target.value;
+    setForm(prev => ({ ...prev, templateId }));
+
+    if (templateId) {
+      const selectedTemplate = templates.find(t => t.id === templateId);
+      if (selectedTemplate) {
+        // 根据模板内容填充表单
+        try {
+          // 尝试解析模板内容
+          const templateData = JSON.parse(selectedTemplate.content);
+          setForm(prev => ({
+            ...prev,
+            type: templateData.type || prev.type,
+            // 更新其他字段
+            metadata: {
+              ...prev.metadata,
+              synopsis: templateData.synopsis || prev.metadata.synopsis,
+              // 可以添加其他你希望从模板中获取的字段
+            }
+          }));
+        } catch (e) {
+          // 如果内容不是JSON, 可能是纯文本模板
+          setForm(prev => ({
+            ...prev,
+            metadata: {
+              ...prev.metadata,
+              synopsis: selectedTemplate.content || prev.metadata.synopsis
+            }
+          }));
+        }
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitLoading(true)
@@ -272,6 +327,7 @@ export default function NovelSettingsForm({
         writingRequirements: metadataToSave.writingRequirements,
         status: metadataToSave.status,
         worldId: form.worldId,
+        templateId: form.templateId,
         createdAt: project?.createdAt,
         updatedAt: project?.updatedAt,
       }
@@ -302,6 +358,7 @@ export default function NovelSettingsForm({
           writingRequirements: saved.writingRequirements || [],
         },
         worldId: saved.worldId || '',
+        templateId: saved.templateId || ''
       }
       onSave(novelProject)
     } catch (err: any) {
@@ -489,6 +546,30 @@ export default function NovelSettingsForm({
                 <option key={option} value={option} />
               ))}
             </datalist>
+          </div>
+          <div>
+            <label htmlFor="templateId" className="block text-sm font-medium mb-1">
+              使用模板
+            </label>
+            {isLoadingTemplates ? (
+              <div className="text-sm text-muted-foreground">模板加载中...</div>
+            ) : templatesError ? (
+              <div className="text-sm text-destructive">{templatesError}</div>
+            ) : (
+              <select
+                id="templateId"
+                name="templateId"
+                value={form.templateId || ""}
+                onChange={handleTemplateChange}
+                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <option value="">-- 选择模板 --</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
+            )}
+            <div className="text-xs text-muted-foreground mt-1">选择模板后将自动填充部分内容</div>
           </div>
         </div>
 
