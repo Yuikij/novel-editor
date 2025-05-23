@@ -13,6 +13,10 @@ export interface Plot {
   characterIds?: string[]
   itemIds?: string[]
   templateId?: string
+  sortOrder?: number
+  status?: string
+  completionPercentage?: number
+  wordCountGoal?: number
 }
 
 function mapFromBackend(plot: any) {
@@ -109,4 +113,17 @@ export async function autoExpandPlots(chapterId: string, targetCount: number = 5
   if (!res.ok) throw new Error('情节自动扩展失败')
   const data = await res.json()
   return data.data.map(mapFromBackend)
+}
+
+// 获取章节中第一个未完成的情节
+export async function fetchFirstIncompletePlot(chapterId: string) {
+  const res = await fetch(`${API_BASE_URL}/plots/first-incomplete/${chapterId}`)
+  if (!res.ok) {
+    if (res.status === 404) {
+      return null // 没有未完成的情节
+    }
+    throw new Error('获取未完成情节失败')
+  }
+  const data = await res.json()
+  return mapFromBackend(data.data)
 } 

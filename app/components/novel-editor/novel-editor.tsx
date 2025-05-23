@@ -4,7 +4,12 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/app/components/ui/button"
 import { IconRobot, IconDeviceFloppy, IconEye, IconEdit, IconMaximize, IconMinimize } from "@tabler/icons-react"
 import { FaFont } from "react-icons/fa"
-import { fetchChapter, updateChapter } from "@/app/lib/api/chapter"
+import { fetchChapter, updateChapter, fetchChapterHistory, fetchChapterHistoryVersion, restoreChapterFromHistory, deleteChapterHistoryVersion } from "@/app/lib/api/chapter"
+import { fetchFirstIncompletePlot, updatePlot, Plot } from "@/app/lib/api/plot"
+import { fetchCharactersByProject, Character } from "@/app/lib/api/character"
+import { fetchTemplatesPage } from "@/app/lib/api/template"
+import { fetchEntriesPage } from "@/app/lib/api/entry"
+import type { Template, Entry } from "@/app/types"
 import debounce from "lodash.debounce"
 import dynamic from "next/dynamic"
 import "@uiw/react-md-editor/markdown-editor.css"
@@ -32,7 +37,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const [content, setContent] = useState<string>("")
   const contentRef = useRef<string>("")
   const [chapter, setChapter] = useState<any>(null)
-  const [isAiPanelOpen, setIsAiPanelOpen] = useState<boolean>(false)
+  const [isAiPanelOpen, setIsAiPanelOpen] = useState<boolean>(true)
   const [wordCount, setWordCount] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -50,6 +55,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const [showGenOptions, setShowGenOptions] = useState(false)
   const [genPrompt, setGenPrompt] = useState("")
   const [genWordCount, setGenWordCount] = useState("")
+  const [genFreedom, setGenFreedom] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
@@ -57,6 +63,24 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const editorContainerRef = useRef<HTMLDivElement | null>(null)
   const [pollingTimestamp, setPollingTimestamp] = useState<number>(0)
   const [lastGeneratedContentId, setLastGeneratedContentId] = useState<string>("")
+  const [incompletePlot, setIncompletePlot] = useState<Plot | null>(null)
+  const [isEditingPlot, setIsEditingPlot] = useState(false)
+  const [plotTitle, setPlotTitle] = useState("")
+  const [plotDescription, setPlotDescription] = useState("")
+  const [plotType, setPlotType] = useState("")
+  const [plotTemplateId, setPlotTemplateId] = useState("")
+  const [plotCharacterIds, setPlotCharacterIds] = useState<string[]>([])
+  const [plotItemIds, setPlotItemIds] = useState<string[]>([])
+  const [plotWordCountGoal, setPlotWordCountGoal] = useState<number | undefined>(undefined)
+  const [characters, setCharacters] = useState<Character[]>([])
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [entries, setEntries] = useState<Entry[]>([])
+  const [isLoadingData, setIsLoadingData] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [historyVersions, setHistoryVersions] = useState<any[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [selectedHistoryVersion, setSelectedHistoryVersion] = useState<any>(null)
+  const [showHistoryPreview, setShowHistoryPreview] = useState(false)
 
   // 通知后端内容已消费完成
   const notifyContentConsumed = async (planId: string) => {
@@ -196,8 +220,10 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
       try {
         const data = await fetchChapter(chapterId)
         setChapter(data)
-        setContent(data.content || "")
-        countWords(data.content || "")
+        const chapterContent = data.content || ""
+        setContent(chapterContent)
+        contentRef.current = chapterContent // 同步更新ref
+        countWords(chapterContent)
       } catch (err: any) {
         setError(err.message || "加载章节失败")
       } finally {
@@ -207,6 +233,60 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
 
     loadChapter()
   }, [chapterId])
+
+  // 加载未完成的情节
+  useEffect(() => {
+    if (!chapterId) return
+
+    const loadIncompletePlot = async () => {
+      try {
+        const plot = await fetchFirstIncompletePlot(chapterId)
+        setIncompletePlot(plot)
+        if (plot) {
+          setPlotTitle(plot.title || "")
+          setPlotDescription(plot.description || "")
+          setPlotType(plot.type || "")
+          setPlotTemplateId(plot.templateId || "")
+          setPlotCharacterIds(plot.characterIds || [])
+          setPlotItemIds(plot.itemIds || [])
+          setPlotWordCountGoal(plot.wordCountGoal)
+        }
+      } catch (err: any) {
+        console.error("加载未完成情节失败:", err)
+        // 不显示错误，因为可能没有未完成的情节
+      }
+    }
+
+    loadIncompletePlot()
+  }, [chapterId])
+
+  // 加载角色、模板和条目数据
+  useEffect(() => {
+    if (!projectId) return
+
+    const loadData = async () => {
+      setIsLoadingData(true)
+      try {
+        // 并行加载所有数据
+        const [charactersRes, templatesRes, entriesRes] = await Promise.all([
+          fetchCharactersByProject(projectId),
+          fetchTemplatesPage({ page: 1, pageSize: 100 }),
+          fetchEntriesPage({ page: 1, pageSize: 100 })
+        ])
+        
+        setCharacters(charactersRes)
+        setTemplates(templatesRes.data?.records || [])
+        setEntries(entriesRes.data?.records || [])
+      } catch (err: any) {
+        console.error("加载数据失败:", err)
+        toast.error("加载数据失败")
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+
+    loadData()
+  }, [projectId])
 
   // 统计字数
   const countWords = (text: string) => {
@@ -248,6 +328,9 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
           const newLines = lines.map(line => line.startsWith(INDENT) ? line.slice(INDENT.length) : line)
           const newValue = value.slice(0, selectionStart) + newLines.join('\n') + value.slice(selectionEnd)
           setContent(newValue)
+          contentRef.current = newValue // 同步更新ref
+          countWords(newValue)
+          debouncedSave(newValue)
           setTimeout(() => {
             textarea.setSelectionRange(selectionStart, selectionEnd - (lines.length - newLines.filter((l, i) => lines[i].startsWith(INDENT)).length) * INDENT.length)
           }, 0)
@@ -256,6 +339,9 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
           const newLines = lines.map(line => INDENT + line)
           const newValue = value.slice(0, selectionStart) + newLines.join('\n') + value.slice(selectionEnd)
           setContent(newValue)
+          contentRef.current = newValue // 同步更新ref
+          countWords(newValue)
+          debouncedSave(newValue)
           setTimeout(() => {
             textarea.setSelectionRange(selectionStart, selectionEnd + lines.length * INDENT.length)
           }, 0)
@@ -268,6 +354,9 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
           if (before.endsWith(INDENT)) {
             const newValue = value.substring(0, selectionStart - INDENT.length) + value.substring(selectionStart)
             setContent(newValue)
+            contentRef.current = newValue // 同步更新ref
+            countWords(newValue)
+            debouncedSave(newValue)
             setTimeout(() => {
               textarea.setSelectionRange(selectionStart - INDENT.length, selectionStart - INDENT.length)
             }, 0)
@@ -276,6 +365,9 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
           // Tab: 插入缩进
           const newValue = value.substring(0, selectionStart) + INDENT + value.substring(selectionEnd)
           setContent(newValue)
+          contentRef.current = newValue // 同步更新ref
+          countWords(newValue)
+          debouncedSave(newValue)
           setTimeout(() => {
             textarea.setSelectionRange(selectionStart + INDENT.length, selectionStart + INDENT.length)
           }, 0)
@@ -304,6 +396,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
       }
       const newText = textBeforeCursor + insertText + textAfterCursor
       setContent(newText)
+      contentRef.current = newText // 同步更新ref
       countWords(newText)
       debouncedSave(newText)
       // 设置新的光标位置
@@ -319,6 +412,12 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const saveContent = async (text: string) => {
     if (!chapterId || !chapter) return
     
+    console.log('[DEBUG SAVE] saveContent 开始执行')
+    console.log('[DEBUG SAVE] 传入的text长度:', text.length)
+    console.log('[DEBUG SAVE] 传入的text前100字符:', text.substring(0, 100))
+    console.log('[DEBUG SAVE] chapterId:', chapterId)
+    console.log('[DEBUG SAVE] chapter对象:', chapter)
+    
     setIsSaving(true)
     try {
       // 计算实际字数（排除 Markdown 标记）
@@ -332,15 +431,26 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, "")
         .length
         
+      console.log('[DEBUG SAVE] 计算的字数:', wordCount)
+        
       const updatedChapter = {
         ...chapter,
         content: text,
         wordCount: wordCount
       }
+      
+      console.log('[DEBUG SAVE] 准备发送的章节数据:', {
+        id: updatedChapter.id,
+        title: updatedChapter.title,
+        contentLength: updatedChapter.content?.length || 0,
+        wordCount: updatedChapter.wordCount
+      })
+      
       await updateChapter(chapterId, updatedChapter)
       setLastSaved(new Date())
+      console.log('[DEBUG SAVE] 保存成功')
     } catch (err) {
-      console.error("保存失败:", err)
+      console.error("[DEBUG SAVE] 保存失败:", err)
     } finally {
       setIsSaving(false)
     }
@@ -356,11 +466,162 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const handleManualSave = async () => {
     if (!chapterId || !chapter) return
     
+    console.log('[DEBUG MANUAL SAVE] 手动保存开始')
+    console.log('[DEBUG MANUAL SAVE] chapterId:', chapterId)
+    console.log('[DEBUG MANUAL SAVE] chapter存在:', !!chapter)
+    
     // 取消任何待处理的自动保存
     debouncedSave.cancel()
-    console.log('[DEBUG CONTENT] handleManualSave - 当前content长度:', content.length);
-    console.log('[DEBUG CONTENT] handleManualSave - contentRef长度:', contentRef.current.length);
+    console.log('[DEBUG MANUAL SAVE] 当前content状态长度:', content.length);
+    console.log('[DEBUG MANUAL SAVE] contentRef当前长度:', contentRef.current.length);
+    console.log('[DEBUG MANUAL SAVE] content前100字符:', content.substring(0, 100));
+    console.log('[DEBUG MANUAL SAVE] contentRef前100字符:', contentRef.current.substring(0, 100));
+    
     await saveContent(contentRef.current) // Use ref for most up-to-date value
+    console.log('[DEBUG MANUAL SAVE] 手动保存完成')
+  }
+
+  // 保存情节
+  const savePlot = async () => {
+    if (!incompletePlot) return
+    
+    try {
+      const updatedPlot = {
+        ...incompletePlot,
+        title: plotTitle,
+        description: plotDescription,
+        type: plotType,
+        templateId: plotTemplateId || undefined,
+        characterIds: plotCharacterIds,
+        itemIds: plotItemIds,
+        wordCountGoal: plotWordCountGoal,
+      }
+      await updatePlot(incompletePlot.id, updatedPlot)
+      setIncompletePlot(updatedPlot)
+      setIsEditingPlot(false)
+      toast.success("情节已保存")
+    } catch (err: any) {
+      console.error("保存情节失败:", err)
+      toast.error("保存情节失败")
+    }
+  }
+
+  // 取消编辑情节
+  const cancelEditPlot = () => {
+    if (incompletePlot) {
+      setPlotTitle(incompletePlot.title || "")
+      setPlotDescription(incompletePlot.description || "")
+      setPlotType(incompletePlot.type || "")
+      setPlotTemplateId(incompletePlot.templateId || "")
+      setPlotCharacterIds(incompletePlot.characterIds || [])
+      setPlotItemIds(incompletePlot.itemIds || [])
+      setPlotWordCountGoal(incompletePlot.wordCountGoal)
+    }
+    setIsEditingPlot(false)
+  }
+
+  // 加载历史记录
+  const loadHistory = async () => {
+    if (!chapterId) return
+    
+    setIsLoadingHistory(true)
+    try {
+      const history = await fetchChapterHistory(chapterId)
+      // 确保history是数组类型
+      const historyArray = Array.isArray(history) ? history : (history ? [history] : [])
+      setHistoryVersions(historyArray)
+      setShowHistory(true)
+    } catch (err: any) {
+      console.error("加载历史记录失败:", err)
+      toast.error("加载历史记录失败")
+      // 出错时设置为空数组
+      setHistoryVersions([])
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }
+
+  // 预览历史版本
+  const previewHistoryVersion = async (version: any) => {
+    if (!chapterId) return
+    
+    try {
+      // 如果版本对象中已经有内容，直接使用
+      if (version.content) {
+        setSelectedHistoryVersion(version)
+        setShowHistoryPreview(true)
+      } else {
+        // 否则从API获取内容
+        const fetchedContent = await fetchChapterHistoryVersion(chapterId, version.timestamp)
+        setSelectedHistoryVersion({
+          ...version,
+          content: fetchedContent
+        })
+        setShowHistoryPreview(true)
+      }
+    } catch (err: any) {
+      console.error("预览历史版本失败:", err)
+      toast.error("预览历史版本失败")
+    }
+  }
+
+  // 恢复历史版本
+  const restoreHistoryVersion = async (version: any) => {
+    if (!chapterId || !chapter) return
+    
+    try {
+      // 如果版本对象中已经有内容，直接恢复
+      if (version.content) {
+        const restoredContent = version.content
+        setContent(restoredContent)
+        contentRef.current = restoredContent // 同步更新ref
+        countWords(restoredContent)
+        
+        // 更新章节对象
+        const updatedChapter = {
+          ...chapter,
+          content: restoredContent,
+          wordCount: version.wordCount || restoredContent.length
+        }
+        setChapter(updatedChapter)
+        
+        setShowHistoryPreview(false)
+        setShowHistory(false)
+        toast.success("历史版本已恢复")
+        
+        // 保存恢复的内容
+        await saveContent(restoredContent)
+      } else {
+        // 否则调用API恢复
+        const restoredChapter = await restoreChapterFromHistory(chapterId, version.timestamp)
+        setChapter(restoredChapter)
+        const restoredContent = restoredChapter.content || ""
+        setContent(restoredContent)
+        contentRef.current = restoredContent // 同步更新ref
+        countWords(restoredContent)
+        setShowHistoryPreview(false)
+        setShowHistory(false)
+        toast.success("历史版本已恢复")
+      }
+    } catch (err: any) {
+      console.error("恢复历史版本失败:", err)
+      toast.error("恢复历史版本失败")
+    }
+  }
+
+  // 删除历史版本
+  const deleteHistoryVersion = async (version: any) => {
+    if (!chapterId) return
+    
+    try {
+      await deleteChapterHistoryVersion(chapterId, version.timestamp)
+      // 重新加载历史记录
+      await loadHistory()
+      toast.success("历史版本已删除")
+    } catch (err: any) {
+      console.error("删除历史版本失败:", err)
+      toast.error("删除历史版本失败")
+    }
   }
 
   // 设置编辑器引用
@@ -376,7 +637,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   }, [fontSize])
 
   // 你的内容生成处理函数（如无则需实现）
-  const handleGenerateContent = async ({ prompt, wordCount }: { prompt?: string; wordCount?: string }) => {
+  const handleGenerateContent = async ({ prompt, wordCount, freedom }: { prompt?: string; wordCount?: string; freedom?: boolean }) => {
     if (!chapterId || !projectId) return;
     console.log('Start content generation process');
     setIsGenerating(true);
@@ -387,6 +648,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
       const params = new URLSearchParams({
         chapterId,
         projectId,
+        freedom: String(freedom || false), // 添加freedom参数，默认为false
         ...(prompt ? { promptSuggestion: prompt } : {}),
         ...(wordCount ? { wordCountSuggestion: wordCount } : {}),
       });
@@ -927,6 +1189,14 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               <IconDeviceFloppy className="mr-1 h-4 w-4" />
               保存
             </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={loadHistory}
+              disabled={isLoadingHistory}
+            >
+              {isLoadingHistory ? "加载中..." : "历史记录"}
+            </Button>
           </div>
         </div>
         
@@ -996,6 +1266,220 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
             <h3 className="font-semibold">AI 写作助手</h3>
           </div>
           <div className="space-y-4 p-4">
+            {/* 历史记录 */}
+            <div className="rounded-md bg-accent/50 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-medium">章节历史</h4>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={loadHistory}
+                  disabled={isLoadingHistory}
+                >
+                  {isLoadingHistory ? "加载中..." : "查看历史"}
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                查看和恢复章节的历史版本。
+              </p>
+            </div>
+            
+            {/* 未完成的情节 */}
+            {incompletePlot && (
+              <div className="rounded-md bg-accent/50 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium">当前需要创作的情节</h4>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsEditingPlot(!isEditingPlot)}
+                  >
+                    {isEditingPlot ? "取消" : "编辑"}
+                  </Button>
+                </div>
+                
+                {isEditingPlot ? (
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      className="w-full rounded border bg-background px-2 py-1 text-sm"
+                      placeholder="情节标题"
+                      value={plotTitle}
+                      onChange={e => setPlotTitle(e.target.value)}
+                    />
+                    
+                    <textarea
+                      className="w-full rounded border bg-background px-2 py-1 text-sm"
+                      rows={3}
+                      placeholder="情节描述"
+                      value={plotDescription}
+                      onChange={e => setPlotDescription(e.target.value)}
+                    />
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground">类型</label>
+                        <select
+                          className="w-full rounded border bg-background px-2 py-1 text-sm"
+                          value={plotType}
+                          onChange={e => setPlotType(e.target.value)}
+                        >
+                          <option value="">选择类型</option>
+                          <option value="开端">开端</option>
+                          <option value="发展">发展</option>
+                          <option value="高潮">高潮</option>
+                          <option value="结局">结局</option>
+                          <option value="转折">转折</option>
+                          <option value="冲突">冲突</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs text-muted-foreground">字数目标</label>
+                        <input
+                          type="number"
+                          className="w-full rounded border bg-background px-2 py-1 text-sm"
+                          placeholder="字数目标"
+                          value={plotWordCountGoal || ""}
+                          onChange={e => setPlotWordCountGoal(e.target.value ? Number(e.target.value) : undefined)}
+                          min={0}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs text-muted-foreground">模板</label>
+                      <select
+                        className="w-full rounded border bg-background px-2 py-1 text-sm"
+                        value={plotTemplateId}
+                        onChange={e => setPlotTemplateId(e.target.value)}
+                        disabled={isLoadingData}
+                      >
+                        <option value="">选择模板</option>
+                        {templates.map(template => (
+                          <option key={template.id} value={template.id}>
+                            {template.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs text-muted-foreground">关联角色</label>
+                      <select
+                        multiple
+                        className="w-full rounded border bg-background px-2 py-1 text-sm min-h-[60px]"
+                        value={plotCharacterIds}
+                        onChange={e => {
+                          const selected = Array.from(e.target.selectedOptions, option => option.value)
+                          setPlotCharacterIds(selected)
+                        }}
+                        disabled={isLoadingData}
+                      >
+                        {characters.map(character => (
+                          <option key={character.id} value={character.id}>
+                            {character.name} ({character.role || "未知角色"})
+                          </option>
+                        ))}
+                      </select>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        按住Ctrl/Cmd键可多选
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs text-muted-foreground">关联条目</label>
+                      <select
+                        multiple
+                        className="w-full rounded border bg-background px-2 py-1 text-sm min-h-[60px]"
+                        value={plotItemIds}
+                        onChange={e => {
+                          const selected = Array.from(e.target.selectedOptions, option => option.value)
+                          setPlotItemIds(selected)
+                        }}
+                        disabled={isLoadingData}
+                      >
+                        {entries.map(entry => (
+                          <option key={entry.id} value={entry.id}>
+                            {entry.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        按住Ctrl/Cmd键可多选
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={savePlot} disabled={isLoadingData}>
+                        {isLoadingData ? "加载中..." : "保存"}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelEditPlot}>
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="font-medium text-sm">{incompletePlot.title || "未命名情节"}</div>
+                    <div className="text-sm text-muted-foreground max-h-20 overflow-y-auto">
+                      <div className="break-words">
+                        {incompletePlot.description || "暂无描述"}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">类型: </span>
+                        <span>{incompletePlot.type || "未设置"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">字数目标: </span>
+                        <span>{incompletePlot.wordCountGoal || "未设置"}</span>
+                      </div>
+                    </div>
+                    
+                    {incompletePlot.templateId && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">模板: </span>
+                        <span className="break-words">
+                          {templates.find(t => t.id === incompletePlot.templateId)?.name || "未知模板"}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {incompletePlot.characterIds && incompletePlot.characterIds.length > 0 && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">关联角色: </span>
+                        <div className="break-words mt-1">
+                          {incompletePlot.characterIds
+                            .map(id => characters.find(c => c.id === id)?.name)
+                            .filter(Boolean)
+                            .join(", ") || "未找到角色"}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {incompletePlot.itemIds && incompletePlot.itemIds.length > 0 && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">关联条目: </span>
+                        <div className="break-words mt-1">
+                          {incompletePlot.itemIds
+                            .map(id => entries.find(e => e.id === id)?.name)
+                            .filter(Boolean)
+                            .join(", ") || "未找到条目"}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="text-xs text-muted-foreground">
+                      完成度: {incompletePlot.completionPercentage || 0}%
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
             <div className="rounded-md bg-accent/50 p-3">
               <h4 className="font-medium">情感节奏</h4>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -1049,6 +1533,33 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               )}
               {showGenOptions && !isGenerating && (
                 <div className="mt-3 space-y-2">
+                  {/* 创作模式选择 */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">创作模式</label>
+                    <div className="space-y-1">
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="freedom"
+                          checked={!genFreedom}
+                          onChange={() => setGenFreedom(false)}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">按照未完成的情节创作（推荐）</span>
+                      </label>
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="freedom"
+                          checked={genFreedom}
+                          onChange={() => setGenFreedom(true)}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">自由创作</span>
+                      </label>
+                    </div>
+                  </div>
+                  
                   <textarea
                     className="w-full rounded border bg-background px-2 py-1 text-sm"
                     rows={2}
@@ -1056,22 +1567,32 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                     value={genPrompt}
                     onChange={e => setGenPrompt(e.target.value)}
                   />
-                  <input
-                    type="number"
-                    className="w-full rounded border bg-background px-2 py-1 text-sm"
-                    placeholder="可选：字数建议（如500）"
-                    value={genWordCount}
-                    onChange={e => setGenWordCount(e.target.value)}
-                    min={0}
-                  />
+                  
+                  {/* 只有在自由创作模式下才显示字数建议 */}
+                  {genFreedom && (
+                    <input
+                      type="number"
+                      className="w-full rounded border bg-background px-2 py-1 text-sm"
+                      placeholder="可选：字数建议（如500）"
+                      value={genWordCount}
+                      onChange={e => setGenWordCount(e.target.value)}
+                      min={0}
+                    />
+                  )}
+                  
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       onClick={() => {
-                        handleGenerateContent({ prompt: genPrompt, wordCount: genWordCount })
+                        handleGenerateContent({ 
+                          prompt: genPrompt, 
+                          wordCount: genFreedom ? genWordCount : undefined, // 只有自由创作时才传递字数建议
+                          freedom: genFreedom 
+                        })
                         setShowGenOptions(false)
                         setGenPrompt("")
                         setGenWordCount("")
+                        setGenFreedom(false) // 重置为默认值
                       }}
                       disabled={isGenerating}
                     >
@@ -1084,6 +1605,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                         setShowGenOptions(false)
                         setGenPrompt("")
                         setGenWordCount("")
+                        setGenFreedom(false) // 重置为默认值
                       }}
                     >
                       取消
@@ -1100,8 +1622,11 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                   variant="outline"
                   onClick={() => {
                     const template = '## 场景描写\n\n阳光透过窗帘洒在木地板上，形成一片温暖的光斑。房间里弥漫着咖啡的香气，墙上的挂钟滴答作响，标记着时间的流逝。'
-                    setContent(content + '\n\n' + template)
-                    countWords(content + '\n\n' + template)
+                    const newContent = content + '\n\n' + template
+                    setContent(newContent)
+                    contentRef.current = newContent // 同步更新ref
+                    countWords(newContent)
+                    debouncedSave(newContent) // 触发保存
                   }}
                 >
                   场景描写
@@ -1111,8 +1636,11 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                   variant="outline"
                   onClick={() => {
                     const template = '## 人物对话\n\n"你真的决定要走了吗？" 她轻声问道，眼睛里含着泪水。\n\n他深吸一口气，"我必须这么做，为了我们两个人。"\n\n"但是..." 她的声音哽咽了。'
-                    setContent(content + '\n\n' + template)
-                    countWords(content + '\n\n' + template)
+                    const newContent = content + '\n\n' + template
+                    setContent(newContent)
+                    contentRef.current = newContent // 同步更新ref
+                    countWords(newContent)
+                    debouncedSave(newContent) // 触发保存
                   }}
                 >
                   人物对话
@@ -1122,8 +1650,11 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                   variant="outline"
                   onClick={() => {
                     const template = '## 内心独白\n\n我站在窗前，看着外面的雨滴敲打着玻璃。为什么每次做出决定都如此艰难？也许是因为我太在乎后果，太担心失败。但人生不就是一系列选择和冒险吗？'
-                    setContent(content + '\n\n' + template)
-                    countWords(content + '\n\n' + template)
+                    const newContent = content + '\n\n' + template
+                    setContent(newContent)
+                    contentRef.current = newContent // 同步更新ref
+                    countWords(newContent)
+                    debouncedSave(newContent) // 触发保存
                   }}
                 >
                   内心独白
@@ -1133,12 +1664,125 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                   variant="outline"
                   onClick={() => {
                     const template = '## 转场\n\n---\n\n三个月后，当春天的第一缕阳光照耀着城市。'
-                    setContent(content + '\n\n' + template)
-                    countWords(content + '\n\n' + template)
+                    const newContent = content + '\n\n' + template
+                    setContent(newContent)
+                    contentRef.current = newContent // 同步更新ref
+                    countWords(newContent)
+                    debouncedSave(newContent) // 触发保存
                   }}
                 >
                   时间转场
                 </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 历史记录弹窗 */}
+      {showHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-2xl max-h-[80vh] rounded-lg border bg-card shadow-lg">
+            <div className="flex items-center justify-between border-b p-4">
+              <h2 className="text-lg font-semibold">章节历史记录</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowHistory(false)}
+              >
+                ✕
+              </Button>
+            </div>
+            
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              {!Array.isArray(historyVersions) || historyVersions.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  暂无历史记录
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {historyVersions.map((version, index) => (
+                    <div key={version.timestamp || index} className="border rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-medium">
+                          版本 {index + 1}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {version.createdAt ? new Date(version.createdAt).toLocaleString() : version.timestamp}
+                        </div>
+                      </div>
+                      
+                      <div className="text-sm text-muted-foreground mb-3">
+                        字数: {version.wordCount || "未知"}
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => previewHistoryVersion(version)}
+                        >
+                          预览
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => restoreHistoryVersion(version)}
+                        >
+                          恢复
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteHistoryVersion(version)}
+                        >
+                          删除
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 历史版本预览弹窗 */}
+      {showHistoryPreview && selectedHistoryVersion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-4xl max-h-[90vh] rounded-lg border bg-card shadow-lg">
+            <div className="flex items-center justify-between border-b p-4">
+              <h2 className="text-lg font-semibold">
+                历史版本预览 - {selectedHistoryVersion.createdAt ? 
+                  new Date(selectedHistoryVersion.createdAt).toLocaleString() : 
+                  selectedHistoryVersion.timestamp}
+              </h2>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => restoreHistoryVersion(selectedHistoryVersion)}
+                >
+                  恢复此版本
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowHistoryPreview(false)}
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+            
+            <div className="p-4 max-h-[70vh] overflow-y-auto">
+              <div className="mb-4 text-sm text-muted-foreground">
+                字数: {selectedHistoryVersion.wordCount || "未知"}
+              </div>
+              
+              <div className="prose prose-sm max-w-none bg-muted/30 p-4 rounded">
+                <pre className="whitespace-pre-wrap font-sans text-sm">
+                  {selectedHistoryVersion.content || "内容为空"}
+                </pre>
               </div>
             </div>
           </div>

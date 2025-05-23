@@ -19,7 +19,7 @@ export interface Chapter {
 
 // 字段映射：前端 targetWordCount <-> 后端 wordCountGoal
 function mapToBackend(chapter: any) {
-  const { targetWordCount, order, ...rest } = chapter
+  const { targetWordCount, order, historyContent, ...rest } = chapter
   return {
     ...rest,
     sortOrder: chapter.sortOrder,
@@ -85,13 +85,38 @@ export async function createChapter(chapter: Omit<Chapter, 'id'>) {
 
 // 更新章节
 export async function updateChapter(id: string, chapter: Chapter) {
+  const backendData = mapToBackend(chapter)
+  console.log('[DEBUG API] updateChapter 原始数据:', {
+    id: chapter.id,
+    title: chapter.title,
+    contentLength: chapter.content?.length || 0,
+    wordCount: chapter.wordCount
+  })
+  console.log('[DEBUG API] updateChapter 映射后数据:', {
+    id: backendData.id,
+    title: backendData.title,
+    contentLength: backendData.content?.length || 0,
+    wordCount: backendData.wordCount,
+    hasContent: 'content' in backendData
+  })
+  
   const res = await fetch(`${API_BASE_URL}/chapters/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(mapToBackend(chapter)),
+    body: JSON.stringify(backendData),
   })
+  
+  console.log('[DEBUG API] updateChapter 响应状态:', res.status)
+  
   if (!res.ok) throw new Error('章节更新失败')
   const data = await res.json()
+  
+  console.log('[DEBUG API] updateChapter 响应数据:', {
+    code: data.code,
+    message: data.message,
+    dataContentLength: data.data?.content?.length || 0
+  })
+  
   return mapFromBackend(data.data)
 }
 
@@ -130,4 +155,112 @@ export async function fetchChaptersByProject(projectId: string) {
   if (!res.ok) throw new Error('获取项目章节失败')
   const data = await res.json()
   return data.data.map(mapFromBackend)
+}
+
+// 获取章节历史记录
+export async function fetchChapterHistory(chapterId: string) {
+  const res = await fetch(`${API_BASE_URL}/chapters/${chapterId}/history`)
+  if (!res.ok) {
+    if (res.status === 404) {
+      return [] // 没有历史记录时返回空数组
+    }
+    throw new Error('获取章节历史记录失败')
+  }
+  const data = await res.json()
+  
+  console.log('[DEBUG HISTORY] 原始历史数据:', data)
+  
+  // 确保返回的数据是数组格式
+  if (data.code === 200 || data.code === 1) {
+    const historyData = data.data
+    console.log('[DEBUG HISTORY] 历史数据类型:', typeof historyData, historyData)
+    
+    if (Array.isArray(historyData)) {
+      return historyData
+    } else if (historyData && typeof historyData === 'object') {
+      // 如果data是对象，可能包含历史记录数组
+      if (Array.isArray(historyData.records)) {
+        return historyData.records
+      } else if (Array.isArray(historyData.history)) {
+        return historyData.history
+      } else {
+        // 处理 { "timestamp": "content" } 格式的数据
+        const historyArray = Object.entries(historyData).map(([timestamp, content]) => ({
+          timestamp,
+          content,
+          createdAt: new Date(parseInt(timestamp)).toISOString(),
+          wordCount: typeof content === 'string' ? content.length : 0
+        }))
+        
+        // 按时间戳排序，最新的在前
+        historyArray.sort((a, b) => parseInt(b.timestamp) - parseInt(a.timestamp))
+        
+        console.log('[DEBUG HISTORY] 转换后的历史数组:', historyArray)
+        return historyArray
+      }
+    }
+  }
+  
+  return [] // 默认返回空数组
+}
+
+// 根据时间戳获取特定版本的章节内容
+export async function fetchChapterHistoryVersion(chapterId: string, timestamp: string) {
+  const res = await fetch(`${API_BASE_URL}/chapters/${chapterId}/history/${timestamp}`)
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('历史版本不存在')
+    }
+    throw new Error('获取历史版本内容失败')
+  }
+  const data = await res.json()
+  
+  // 返回内容数据
+  if (data.code === 200 || data.code === 1) {
+    return data.data || ""
+  }
+  
+  throw new Error(data.message || '获取历史版本内容失败')
+}
+
+// 从历史版本恢复章节内容
+export async function restoreChapterFromHistory(chapterId: string, timestamp: string) {
+  const res = await fetch(`${API_BASE_URL}/chapters/${chapterId}/history/${timestamp}/restore`, {
+    method: 'POST',
+  })
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('历史版本不存在')
+    }
+    throw new Error('恢复历史版本失败')
+  }
+  const data = await res.json()
+  
+  // 返回恢复后的章节数据
+  if (data.code === 200 || data.code === 1) {
+    return mapFromBackend(data.data)
+  }
+  
+  throw new Error(data.message || '恢复历史版本失败')
+}
+
+// 删除特定版本的历史记录
+export async function deleteChapterHistoryVersion(chapterId: string, timestamp: string) {
+  const res = await fetch(`${API_BASE_URL}/chapters/${chapterId}/history/${timestamp}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('历史版本不存在')
+    }
+    throw new Error('删除历史版本失败')
+  }
+  const data = await res.json()
+  
+  // 检查删除是否成功
+  if (data.code === 200 || data.code === 1) {
+    return true
+  }
+  
+  throw new Error(data.message || '删除历史版本失败')
 } 
