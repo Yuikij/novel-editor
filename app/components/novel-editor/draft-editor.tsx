@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from "react"
 import { Button } from "@/app/components/ui/button"
 import { fetchProjectDraft, saveProjectDraft } from "@/app/lib/api/project"
-import debounce from "lodash.debounce"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
 import { Input } from "@/app/components/ui/input"
 import { Loader2, Save, Plus, Trash2, FileText, BrainCircuit, Eye, Edit2, Split } from "lucide-react"
@@ -24,16 +23,36 @@ type ViewMode = "edit" | "preview" | "split"
 export function DraftEditor({ projectId }: DraftEditorProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [sections, setSections] = useState<DraftSection[]>([])
   const [activeTab, setActiveTab] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>("edit")
   const textareaRefs = useRef<{[key: string]: HTMLTextAreaElement | null}>({})
+  const savedSectionsRef = useRef<DraftSection[]>([])
   
   useEffect(() => {
     loadDraft()
   }, [projectId])
-  
+
+  // 页面离开前的确认对话框
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        // 只显示确认对话框，不自动保存
+        e.preventDefault()
+        e.returnValue = '你有未保存的草稿更改，确定要离开吗？'
+        return '你有未保存的草稿更改，确定要离开吗？'
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [hasUnsavedChanges])
+
   // Adjust the height of the textarea based on its content
   const adjustTextareaHeight = (id: string) => {
     const textarea = textareaRefs.current[id]
@@ -60,6 +79,7 @@ export function DraftEditor({ projectId }: DraftEditorProps) {
       const draft = await fetchProjectDraft(projectId)
       if (draft && draft.sections && Array.isArray(draft.sections)) {
         setSections(draft.sections)
+        savedSectionsRef.current = JSON.parse(JSON.stringify(draft.sections))
         if (draft.sections.length > 0) {
           setActiveTab(draft.sections[0].id)
         }
@@ -71,8 +91,10 @@ export function DraftEditor({ projectId }: DraftEditorProps) {
           content: ""
         }
         setSections([initialSection])
+        savedSectionsRef.current = [initialSection]
         setActiveTab(initialSection.id)
       }
+      setHasUnsavedChanges(false)
     } catch (err) {
       console.error("加载草稿失败:", err)
       // Initialize with empty section on error
@@ -82,8 +104,10 @@ export function DraftEditor({ projectId }: DraftEditorProps) {
         content: ""
       }
       setSections([initialSection])
+      savedSectionsRef.current = [initialSection]
       setActiveTab(initialSection.id)
       setError("无法加载草稿，已创建新的空白草稿")
+      setHasUnsavedChanges(false)
     } finally {
       setLoading(false)
     }
@@ -93,25 +117,35 @@ export function DraftEditor({ projectId }: DraftEditorProps) {
     setSaving(true)
     try {
       await saveProjectDraft(projectId, { sections: updatedSections })
-      setSaving(false)
+      savedSectionsRef.current = JSON.parse(JSON.stringify(updatedSections))
+      setHasUnsavedChanges(false)
+      toast.success("草稿已保存")
     } catch (err) {
       console.error("保存草稿失败:", err)
       toast.error("保存草稿失败，请稍后重试")
+    } finally {
       setSaving(false)
     }
   }
-  
-  // Debounced save function to avoid too many API calls
-  const debouncedSave = debounce((updatedSections: DraftSection[]) => {
-    saveDraft(updatedSections)
-  }, 1000)
+
+  // 手动保存
+  const handleManualSave = async () => {
+    if (!hasUnsavedChanges) return
+    await saveDraft(sections)
+  }
+
+  // 检查是否有未保存的更改
+  const checkForUnsavedChanges = (updatedSections: DraftSection[]) => {
+    const hasChanges = JSON.stringify(updatedSections) !== JSON.stringify(savedSectionsRef.current)
+    setHasUnsavedChanges(hasChanges)
+  }
   
   const handleContentChange = (id: string, content: string) => {
     const updatedSections = sections.map(section => 
       section.id === id ? { ...section, content } : section
     )
     setSections(updatedSections)
-    debouncedSave(updatedSections)
+    checkForUnsavedChanges(updatedSections)
     adjustTextareaHeight(id)
   }
   
@@ -120,7 +154,7 @@ export function DraftEditor({ projectId }: DraftEditorProps) {
       section.id === id ? { ...section, title } : section
     )
     setSections(updatedSections)
-    debouncedSave(updatedSections)
+    checkForUnsavedChanges(updatedSections)
   }
   
   const addSection = () => {
@@ -132,7 +166,7 @@ export function DraftEditor({ projectId }: DraftEditorProps) {
     const updatedSections = [...sections, newSection]
     setSections(updatedSections)
     setActiveTab(newSection.id)
-    debouncedSave(updatedSections)
+    checkForUnsavedChanges(updatedSections)
   }
   
   const deleteSection = (id: string) => {
@@ -148,7 +182,7 @@ export function DraftEditor({ projectId }: DraftEditorProps) {
     const updatedSections = sections.filter(section => section.id !== id)
     setSections(updatedSections)
     setActiveTab(updatedSections[newActiveIndex].id)
-    debouncedSave(updatedSections)
+    checkForUnsavedChanges(updatedSections)
   }
   
   const generateId = () => {
@@ -309,15 +343,37 @@ export function DraftEditor({ projectId }: DraftEditorProps) {
             </div>
             <span className="hidden sm:inline">刷新</span>
           </Button>
-          <div className="flex items-center gap-1">
-            <div className="relative h-4 w-4 flex items-center justify-center">
+          <Button 
+            variant={hasUnsavedChanges ? "default" : "ghost"}
+            size="sm" 
+            onClick={handleManualSave}
+            disabled={saving || !hasUnsavedChanges}
+            title={hasUnsavedChanges ? "保存草稿更改" : "没有未保存的更改"}
+            className="flex gap-1 items-center"
+          >
+            <div className="h-4 w-4 flex items-center justify-center">
               {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin absolute" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Save className="h-4 w-4 text-muted-foreground" />
+                <Save className="h-4 w-4" />
               )}
             </div>
-            <span className="text-xs text-muted-foreground">{saving ? "保存中..." : "自动保存"}</span>
+            <span className="hidden sm:inline">
+              {saving ? "保存中..." : hasUnsavedChanges ? "保存" : "已保存"}
+            </span>
+          </Button>
+          <div className="flex items-center gap-1">
+            {hasUnsavedChanges && !saving && (
+              <div className="h-2 w-2 bg-orange-500 rounded-full animate-pulse" title="有未保存的更改" />
+            )}
+            <span className="text-xs text-muted-foreground">
+              {saving 
+                ? "保存中..." 
+                : hasUnsavedChanges 
+                  ? "有未保存更改" 
+                  : "手动保存"
+              }
+            </span>
           </div>
         </div>
       </div>
