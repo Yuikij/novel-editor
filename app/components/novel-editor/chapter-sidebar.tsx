@@ -1,19 +1,9 @@
 import { useState } from "react"
 import { Button } from "@/app/components/ui/button"
-import type { ChapterStatus } from "@/app/types"
-
-interface Chapter {
-  id: string
-  title: string
-  wordCount: number
-  status: ChapterStatus
-  summary?: string
-  sortOrder: number
-  targetWordCount?: number
-}
+import type { ChapterStatus, ChapterListDTO } from "@/app/types"
 
 interface ChapterSidebarProps {
-  chapters: Chapter[]
+  chapters: ChapterListDTO[]
   activeChapterId: string
   onChapterSelect: (chapterId: string) => void
 }
@@ -93,9 +83,9 @@ export default function ChapterSidebar({
                       <span className="text-xs text-muted-foreground">
                         {chapter.wordCount} 字
                       </span>
-                      {chapter.targetWordCount && (
+                      {chapter.wordCountGoal && (
                         <span className="text-xs text-muted-foreground">
-                          / 目标字数：{chapter.targetWordCount}
+                          / 目标字数：{chapter.wordCountGoal}
                         </span>
                       )}
                       <span className={`text-xs rounded-full px-1.5 py-0.5 font-medium ${
@@ -117,26 +107,6 @@ export default function ChapterSidebar({
           </div>
         )}
       </div>
-      {/* <div className="p-3 border-t">
-        <Button variant="default" size="sm" className="w-full justify-center">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="mr-1 h-4 w-4"
-          >
-            <path d="M12 5v14" />
-            <path d="M5 12h14" />
-          </svg>
-          添加新章节
-        </Button>
-      </div> */}
     </div>
   )
-} 
+}

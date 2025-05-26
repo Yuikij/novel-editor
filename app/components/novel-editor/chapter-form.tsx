@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/app/components/ui/button"
-import type { Chapter, Template } from "@/app/types"
-import { fetchTemplatesPage } from "@/app/lib/api/template"
+import type { Chapter, ChapterListDTO, Template, TemplateListDTO } from "@/app/types"
+import { fetchTemplatesList, fetchTemplateDetail } from "@/app/lib/api/template"
 
 interface ChapterFormProps {
-  chapter?: Chapter
+  chapter?: Chapter | ChapterListDTO
   onSave: (chapter: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>) => void
   onCancel: () => void
 }
@@ -15,28 +15,31 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
   const isEditing = !!chapter
   const [form, setForm] = useState<Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>>({
     title: chapter?.title || "",
-    content: chapter?.content || "",
+    content: (chapter && 'content' in chapter && chapter.content) ? chapter.content : "",
     summary: chapter?.summary || "",
     sortOrder: chapter?.sortOrder || 1,
     status: chapter?.status || "draft",
     wordCount: chapter?.wordCount || 0,
-    targetWordCount: chapter?.targetWordCount || undefined,
+    targetWordCount: chapter ? 
+      ('wordCountGoal' in chapter ? chapter.wordCountGoal : 
+       ('targetWordCount' in chapter ? chapter.targetWordCount : undefined)) : undefined,
     notes: chapter?.notes || "",
     type: chapter?.type || "",
     templateId: chapter?.templateId || ""
   })
 
   // 模板列表相关 state
-  const [templates, setTemplates] = useState<Template[]>([])
+  const [templates, setTemplates] = useState<TemplateListDTO[]>([])
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
   const [templatesError, setTemplatesError] = useState<string | null>(null)
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false)
 
   // 获取模板列表
   useEffect(() => {
     setIsLoadingTemplates(true)
-    fetchTemplatesPage({ 
+    fetchTemplatesList({ 
       page: 1, 
-      pageSize: 100 
+      size: 100 
     })
       .then(res => setTemplates(res.data.records))
       .catch(err => setTemplatesError(err.message || "模板加载失败"))
@@ -51,17 +54,20 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
   }
 
   // 选择模板后填充模板内容
-  const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleTemplateChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateId = e.target.value;
     setForm(prev => ({ ...prev, templateId }));
 
     if (templateId) {
-      const selectedTemplate = templates.find(t => t.id === templateId);
-      if (selectedTemplate) {
+      try {
+        setIsLoadingTemplate(true)
+        // 获取完整的模板详情
+        const fullTemplate = await fetchTemplateDetail(templateId);
+        
         // 根据模板内容填充表单
         try {
           // 尝试解析模板内容
-          const templateData = JSON.parse(selectedTemplate.content);
+          const templateData = JSON.parse(fullTemplate.content);
           setForm(prev => ({
             ...prev,
             type: templateData.type || prev.type,
@@ -73,9 +79,13 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
           // 如果内容不是JSON, 可能是纯文本模板
           setForm(prev => ({
             ...prev,
-            content: selectedTemplate.content || prev.content
+            content: fullTemplate.content || prev.content
           }));
         }
+      } catch (err) {
+        setTemplatesError(err instanceof Error ? err.message : '获取模板详情失败')
+      } finally {
+        setIsLoadingTemplate(false)
       }
     }
   };
@@ -160,7 +170,8 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
                 name="templateId"
                 value={form.templateId || ""}
                 onChange={handleTemplateChange}
-                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                disabled={isLoadingTemplate}
+                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
               >
                 <option value="">-- 选择模板 --</option>
                 {templates.map((template) => (
@@ -168,7 +179,9 @@ export default function ChapterForm({ chapter, onSave, onCancel }: ChapterFormPr
                 ))}
               </select>
             )}
-            <div className="text-xs text-muted-foreground mt-1">选择模板后将自动填充部分内容</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {isLoadingTemplate ? "正在加载模板内容..." : "选择模板后将自动填充部分内容"}
+            </div>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

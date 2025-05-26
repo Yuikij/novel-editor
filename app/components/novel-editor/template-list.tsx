@@ -1,18 +1,24 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
-import { FaPlus, FaSearch, FaTags, FaFile, FaDownload, FaEdit, FaTrash } from 'react-icons/fa'
+import { FaPlus, FaSearch, FaTags, FaFile, FaDownload, FaEdit, FaTrash, FaComments, FaDatabase } from 'react-icons/fa'
 import { Button } from "@/app/components/ui/button"
 import { 
-  fetchTemplatesPage, 
+  fetchTemplatesList, 
+  fetchTemplateDetail,
   deleteTemplate, 
   createTemplate, 
   updateTemplate,
   createTemplateWithFile,
-  updateTemplateWithFile
+  updateTemplateWithFile,
+  createTemplateWithAutoIndex,
+  uploadTemplateWithAutoIndex
 } from '@/app/lib/api/template'
-import type { Template } from '@/app/types'
+import { batchIndexTemplateVector } from '@/app/lib/api/template-vector'
+import type { Template, TemplateListDTO, VectorStatus } from '@/app/types'
 import TemplateForm from './template-form'
+import TemplateVectorProgress from './template-vector-progress'
+import TemplateChat from './template-chat'
 import { Input } from '@/app/components/ui/input'
 import { Badge } from '@/app/components/ui/badge'
 
@@ -23,326 +29,421 @@ export default function TemplateList({
   onRefetch?: (refetch: () => void) => void, 
   onCreateNew?: () => void 
 }) {
-  const [templates, setTemplates] = useState<Template[]>([])
+  const [templates, setTemplates] = useState<TemplateListDTO[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [hasError, setHasError] = useState<string | null>(null)
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
-  const [editModalOpen, setEditModalOpen] = useState(false)
-  const [createModalOpen, setCreateModalOpen] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
-  const [editError, setEditError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [searchTag, setSearchTag] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [previewContent, setPreviewContent] = useState<{ id: string, content: string } | null>(null)
-  const pageSize = 10
+  const [selectedTag, setSelectedTag] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
+  const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([])
+  const [showVectorProgress, setShowVectorProgress] = useState<string | null>(null)
+  const [showChat, setShowChat] = useState<{ templateId: string; templateName: string } | null>(null)
+  const [autoIndex, setAutoIndex] = useState(false)
 
-  const fetchList = (page = 1, name = searchTerm, tag = searchTag) => {
+  // 获取模板列表
+  const fetchTemplates = async () => {
     setIsLoading(true)
-    setCurrentPage(page)
-    
-    fetchTemplatesPage({ 
-      page, 
-      pageSize, 
-      name: name || undefined, 
-      tag: tag || undefined 
-    })
-      .then(res => {
-        setTemplates(res.data.records)
-        setTotalPages(Math.ceil(res.data.total / pageSize))
+    setError(null)
+    try {
+      const response = await fetchTemplatesList({
+        page: 1,
+        size: 100,
+        name: searchTerm || undefined,
+        tag: selectedTag || undefined
       })
-      .catch(err => setHasError(err.message || '加载失败'))
-      .finally(() => setIsLoading(false))
+      setTemplates(response.data?.records || [])
+    } catch (err: any) {
+      setError(err.message || '获取模板列表失败')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   useEffect(() => {
-    fetchList()
-    if (onRefetch) onRefetch(fetchList)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    fetchTemplates()
+  }, [searchTerm, selectedTag])
 
-  const handleEditClick = (template: Template) => {
-    setEditingTemplate(template)
-    setEditModalOpen(true)
-    setEditError(null)
-  }
+  useEffect(() => {
+    onRefetch?.(fetchTemplates)
+  }, [onRefetch])
 
-  const handleUpdateTemplate = async (updatedTemplate: Omit<Template, 'id'>, file?: File) => {
-    if (!editingTemplate) return
-    
-    try {
-      if (file) {
-        const formData = new FormData()
-        formData.append('id', editingTemplate.id)
-        formData.append('name', updatedTemplate.name)
-        formData.append('tags', updatedTemplate.tags)
-        formData.append('file', file)
-        
-        await updateTemplateWithFile(formData)
-      } else {
-        await updateTemplate(editingTemplate.id, {
-          id: editingTemplate.id,
-          ...updatedTemplate
-        })
-      }
-      setEditModalOpen(false)
-      fetchList(currentPage)
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : '更新失败')
-    }
-  }
-
-  const handleDeleteTemplate = async (id: string) => {
-    if (!window.confirm('确定要删除此模板吗？')) return
-    
-    try {
-      await deleteTemplate(id)
-      fetchList(currentPage)
-    } catch (err) {
-      setHasError(err instanceof Error ? err.message : '删除失败')
-    }
-  }
-
-  const handleCreateTemplate = async (template: Omit<Template, 'id'>, file?: File) => {
-    try {
-      if (file) {
-        const formData = new FormData()
-        formData.append('name', template.name)
-        formData.append('tags', template.tags)
-        formData.append('file', file)
-        
-        await createTemplateWithFile(formData)
-      } else {
-        await createTemplate(template)
-      }
-      setCreateModalOpen(false)
-      fetchList(1) // Go back to first page after creating
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : '创建失败')
-    }
-  }
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    fetchList(1, searchTerm, searchTag)
-  }
-
-  const handleTagClick = (tag: string) => {
-    setSearchTag(tag)
-    fetchList(1, searchTerm, tag)
-  }
-
-  const handlePreviewClick = (template: Template) => {
-    if (previewContent && previewContent.id === template.id) {
-      setPreviewContent(null)
-    } else {
-      setPreviewContent({ id: template.id, content: template.content })
-    }
-  }
-
-  const handleDownloadTemplate = (template: Template) => {
-    const blob = new Blob([template.content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${template.name}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-
-  // Parse and display tags as badges
-  const renderTags = (tagString: string) => {
-    if (!tagString) return null
-    
-    const tags = tagString.split(',').map(tag => tag.trim()).filter(Boolean)
-    
-    return (
-      <div className="flex flex-wrap gap-1 mt-1">
-        {tags.map((tag, index) => (
-          <Badge 
-            key={index} 
-            variant="outline"
-            className="cursor-pointer hover:bg-secondary"
-            onClick={() => handleTagClick(tag)}
-          >
-            {tag}
-          </Badge>
-        ))}
-      </div>
+  // 获取所有标签
+  const allTags = Array.from(
+    new Set(
+      templates
+        .flatMap(template => template.tags?.split(',') || [])
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0)
     )
+  )
+
+  // 过滤模板
+  const filteredTemplates = templates.filter(template => {
+    const matchesSearch = !searchTerm || 
+      template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      template.tags?.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesTag = !selectedTag || 
+      template.tags?.split(',').map(t => t.trim()).includes(selectedTag)
+    
+    return matchesSearch && matchesTag
+  })
+
+  // 处理创建模板
+  const handleCreate = () => {
+    setEditingTemplate(null)
+    setShowForm(true)
+    onCreateNew?.()
+  }
+
+  // 处理编辑模板
+  const handleEdit = async (template: TemplateListDTO) => {
+    try {
+      const fullTemplate = await fetchTemplateDetail(template.id)
+      setEditingTemplate(fullTemplate)
+      setShowForm(true)
+    } catch (err: any) {
+      setError(err.message || '获取模板详情失败')
+    }
+  }
+
+  // 处理预览模板
+  const handlePreview = async (template: TemplateListDTO) => {
+    try {
+      const fullTemplate = await fetchTemplateDetail(template.id)
+      setPreviewTemplate(fullTemplate)
+      setShowPreview(true)
+    } catch (err: any) {
+      setError(err.message || '获取模板详情失败')
+    }
+  }
+
+  // 处理保存模板（统一处理文件和非文件情况）
+  const handleSave = async (templateData: Omit<Template, 'id'>, file?: File) => {
+    try {
+      if (editingTemplate) {
+        if (file) {
+          const formData = new FormData()
+          formData.append('id', editingTemplate.id)
+          formData.append('name', templateData.name)
+          formData.append('tags', templateData.tags)
+          formData.append('file', file)
+          await updateTemplateWithFile(formData)
+        } else {
+          await updateTemplate(editingTemplate.id, { ...templateData, id: editingTemplate.id })
+        }
+      } else {
+        if (file) {
+          const formData = new FormData()
+          formData.append('name', templateData.name)
+          formData.append('tags', templateData.tags)
+          formData.append('file', file)
+          if (autoIndex) {
+            await uploadTemplateWithAutoIndex(formData, true)
+          } else {
+            await createTemplateWithFile(formData)
+          }
+        } else {
+          if (autoIndex) {
+            await createTemplateWithAutoIndex(templateData, true)
+          } else {
+            await createTemplate(templateData)
+          }
+        }
+      }
+      await fetchTemplates()
+      setShowForm(false)
+      setEditingTemplate(null)
+    } catch (err: any) {
+      setError(err.message || '保存模板失败')
+    }
+  }
+
+  // 处理删除模板
+  const handleDelete = async (template: TemplateListDTO) => {
+    if (!confirm(`确定要删除模板"${template.name}"吗？`)) return
+    
+    try {
+      await deleteTemplate(template.id)
+      await fetchTemplates()
+    } catch (err: any) {
+      setError(err.message || '删除模板失败')
+    }
+  }
+
+  // 处理批量向量化
+  const handleBatchVectorize = async () => {
+    if (selectedTemplates.length === 0) {
+      alert('请先选择要向量化的模板')
+      return
+    }
+
+    if (!confirm(`确定要对选中的 ${selectedTemplates.length} 个模板进行向量化吗？`)) return
+
+    try {
+      await batchIndexTemplateVector(selectedTemplates)
+      alert('批量向量化任务已启动')
+      setSelectedTemplates([])
+      await fetchTemplates()
+    } catch (err: any) {
+      setError(err.message || '批量向量化失败')
+    }
+  }
+
+  // 获取向量化状态显示
+  const getVectorStatusDisplay = (status?: VectorStatus, progress?: number) => {
+    if (!status) return null
+    
+    switch (status) {
+      case 'NOT_INDEXED':
+        return <Badge variant="secondary">未索引</Badge>
+      case 'INDEXING':
+        return <Badge variant="outline" className="text-blue-600">索引中 {progress}%</Badge>
+      case 'INDEXED':
+        return <Badge variant="default" className="bg-green-600">已索引</Badge>
+      case 'FAILED':
+        return <Badge variant="destructive">索引失败</Badge>
+      default:
+        return null
+    }
   }
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">模板管理</h2>
-        <Button onClick={() => setCreateModalOpen(true)}>
-          <FaPlus className="mr-2" /> 新建模板
-        </Button>
-      </div>
-
-      {/* Search form */}
-      <form onSubmit={handleSearch} className="mb-6 flex flex-wrap gap-2">
-        <div className="flex-grow flex gap-2">
-          <div className="relative flex-grow">
+    <div className="space-y-4">
+      {/* 搜索和过滤 */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <div className="relative">
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <Input
               type="text"
-              placeholder="搜索模板名称"
+              placeholder="搜索模板..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
-          </div>
-          
-          <div className="relative flex-grow">
-            <Input
-              type="text"
-              placeholder="按标签筛选"
-              value={searchTag}
-              onChange={(e) => setSearchTag(e.target.value)}
-              className="pl-10"
-            />
-            <FaTags className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
           </div>
         </div>
-        
-        <Button type="submit">搜索</Button>
-      </form>
-
-      {hasError && (
-        <div className="text-red-500 mb-4 p-2 bg-red-50 rounded">
-          {hasError}
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="text-center py-10">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">加载中...</p>
-        </div>
-      ) : templates.length === 0 ? (
-        <div className="text-center py-10 border rounded-lg bg-slate-50">
-          <p className="text-muted-foreground mb-4">暂无模板</p>
-          <Button onClick={() => setCreateModalOpen(true)}>
-            <FaPlus className="mr-2" /> 新建第一个模板
+        <div className="flex gap-2">
+          <select
+            value={selectedTag}
+            onChange={(e) => setSelectedTag(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">所有标签</option>
+            {allTags.map(tag => (
+              <option key={tag} value={tag}>{tag}</option>
+            ))}
+          </select>
+          {selectedTemplates.length > 0 && (
+            <Button onClick={handleBatchVectorize} variant="outline">
+              <FaDatabase className="mr-2" />
+              批量向量化 ({selectedTemplates.length})
+            </Button>
+          )}
+          <Button onClick={handleCreate}>
+            <FaPlus className="mr-2" />
+            新建模板
           </Button>
         </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {templates.map((template) => (
-              <div 
-                key={template.id} 
-                className="p-4 border rounded-lg hover:shadow-md transition-shadow"
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-medium text-lg">{template.name}</h3>
-                  <div className="flex gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 w-8 p-0" 
-                      title="预览内容"
-                      onClick={() => handlePreviewClick(template)}
-                    >
-                      <FaFile className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 w-8 p-0" 
-                      title="下载模板"
-                      onClick={() => handleDownloadTemplate(template)}
-                    >
-                      <FaDownload className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                {renderTags(template.tags)}
-                
-                {previewContent && previewContent.id === template.id && (
-                  <div className="mt-4 p-3 bg-gray-50 rounded border overflow-auto max-h-[200px]">
-                    <pre className="text-xs whitespace-pre-wrap font-mono">{previewContent.content}</pre>
-                  </div>
-                )}
-                
-                <div className="flex mt-4 space-x-2 justify-end">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleEditClick(template)}
-                  >
-                    <FaEdit className="mr-1 h-3 w-3" /> 编辑
-                  </Button>
-                  <Button 
-                    variant="destructive" 
-                    size="sm"
-                    onClick={() => handleDeleteTemplate(template.id)}
-                  >
-                    <FaTrash className="mr-1 h-3 w-3" /> 删除
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+      </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-center mt-6 gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => fetchList(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                上一页
-              </Button>
-              
-              <span className="flex items-center px-4">
-                {currentPage} / {totalPages}
-              </span>
-              
-              <Button 
-                variant="outline" 
-                onClick={() => fetchList(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                下一页
-              </Button>
-            </div>
-          )}
-        </>
+      {/* 自动向量化选项 */}
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="autoIndex"
+          checked={autoIndex}
+          onChange={(e) => setAutoIndex(e.target.checked)}
+          className="rounded"
+        />
+        <label htmlFor="autoIndex" className="text-sm text-gray-600">
+          创建模板时自动向量化
+        </label>
+      </div>
+
+      {/* 错误提示 */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
       )}
 
-      {/* Edit Modal */}
-      {editModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[calc(100vh-32px)] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">编辑模板</h2>
+      {/* 模板列表 */}
+      {isLoading ? (
+        <div className="text-center py-8">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="mt-2 text-gray-600">加载中...</p>
+        </div>
+      ) : filteredTemplates.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          {searchTerm || selectedTag ? '没有找到匹配的模板' : '暂无模板'}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredTemplates.map((template) => (
+            <div key={template.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedTemplates.includes(template.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedTemplates([...selectedTemplates, template.id])
+                      } else {
+                        setSelectedTemplates(selectedTemplates.filter(id => id !== template.id))
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <h3 className="font-semibold text-lg">{template.name}</h3>
+                </div>
+                {getVectorStatusDisplay(template.vectorStatus, template.vectorProgress)}
+              </div>
+              
+              {template.tags && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {template.tags.split(',').map((tag, index) => (
+                    <Badge key={index} variant="outline" className="text-xs">
+                      {tag.trim()}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handlePreview(template)}
+                  title="预览"
+                >
+                  <FaFile />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleEdit(template)}
+                  title="编辑"
+                >
+                  <FaEdit />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowVectorProgress(template.id)}
+                  title="向量化管理"
+                >
+                  <FaDatabase />
+                </Button>
+                {template.canChat && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowChat({ templateId: template.id, templateName: template.name })}
+                    title="对话"
+                  >
+                    <FaComments />
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDelete(template)}
+                  className="text-red-600 hover:text-red-700"
+                  title="删除"
+                >
+                  <FaTrash />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 模板表单弹窗 */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">
+              {editingTemplate ? '编辑模板' : '新建模板'}
+            </h2>
             <TemplateForm
               template={editingTemplate || undefined}
-              onSave={handleUpdateTemplate}
-              onCancel={() => setEditModalOpen(false)}
+              onSave={handleSave}
+              onCancel={() => {
+                setShowForm(false)
+                setEditingTemplate(null)
+              }}
             />
-            {editError && <div className="text-red-500 mt-2">{editError}</div>}
           </div>
         </div>
       )}
 
-      {/* Create Modal */}
-      {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[calc(100vh-32px)] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">新建模板</h2>
-            <TemplateForm
-              onSave={handleCreateTemplate}
-              onCancel={() => setCreateModalOpen(false)}
+      {/* 模板预览弹窗 */}
+      {showPreview && previewTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">{previewTemplate.name}</h2>
+              <Button
+                variant="ghost"
+                onClick={() => setShowPreview(false)}
+              >
+                ✕
+              </Button>
+            </div>
+            <div className="prose max-w-none">
+              <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded">
+                {previewTemplate.content}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 向量化进度弹窗 */}
+      {showVectorProgress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">向量化管理</h2>
+              <Button
+                variant="ghost"
+                onClick={() => setShowVectorProgress(null)}
+              >
+                ✕
+              </Button>
+            </div>
+            <TemplateVectorProgress
+              templateId={showVectorProgress}
+              templateName={templates.find(t => t.id === showVectorProgress)?.name || ''}
+              onStatusChange={(status, progress) => {
+                // 更新本地状态
+                setTemplates(prev => prev.map(t => 
+                  t.id === showVectorProgress 
+                    ? { ...t, vectorStatus: status, vectorProgress: progress, canChat: status === 'INDEXED' }
+                    : t
+                ))
+              }}
             />
-            {createError && <div className="text-red-500 mt-2">{createError}</div>}
+          </div>
+        </div>
+      )}
+
+      {/* 对话弹窗 */}
+      {showChat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] m-4">
+            <TemplateChat
+              templateId={showChat.templateId}
+              templateName={showChat.templateName}
+              onClose={() => setShowChat(null)}
+            />
           </div>
         </div>
       )}

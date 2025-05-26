@@ -13,14 +13,14 @@ import { CharacterIcon } from "@/app/components/ui/icons"
 import CharacterForm from "@/app/components/novel-editor/character-form"
 import type { Character } from "@/app/types"
 import PlotForm from "@/app/components/novel-editor/plot-form"
-import type { PlotElement, Chapter } from "@/app/types"
+import type { PlotElement, ChapterListDTO, Chapter } from "@/app/types"
 import ChapterForm from "@/app/components/novel-editor/chapter-form"
 import OutlineForm, { OutlineNode } from "@/app/components/novel-editor/outline-form"
 import OutlineAutoExpand from "@/app/components/novel-editor/outline-auto-expand"
 import ChapterAutoExpand from "@/app/components/novel-editor/chapter-auto-expand"
 import PlotAutoExpand from "@/app/components/novel-editor/plot-auto-expand"
 import { fetchProject, Project } from "@/app/lib/api/project"
-import { fetchChaptersPage, createChapter, updateChapter, deleteChapter, batchDeleteChapters, autoExpandChapters } from '@/app/lib/api/chapter'
+import { fetchChaptersListPage, createChapter, updateChapter, deleteChapter, batchDeleteChapters, autoExpandChapters } from '@/app/lib/api/chapter'
 import { fetchCharactersByProject, createCharacter, updateCharacter, deleteCharacter as deleteCharacterApi } from '@/app/lib/api/character'
 import { deletePlot, fetchPlotsPage, createPlot, updatePlot, batchDeletePlots, autoExpandPlots } from '@/app/lib/api/plot'
 import { fetchOutlinePlotPointsPage, createOutlinePlotPoint, updateOutlinePlotPoint, deleteOutlinePlotPoint, autoExpandOutlinePlotPoints, batchDeleteOutlinePlotPoints } from '@/app/lib/api/outline-plot-point'
@@ -33,7 +33,7 @@ import { useLanguage } from "@/app/lib/i18n/language-context"
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState<string>("write")
-  const [chapters, setChapters] = useState<Chapter[]>([])
+  const [chapters, setChapters] = useState<ChapterListDTO[]>([])
   const [activeChapterId, setActiveChapterId] = useState<string>("")
   const [showChapterSidebar, setShowChapterSidebar] = useState<boolean>(true)
   const [characters, setCharacters] = useState<Character[]>([])
@@ -65,11 +65,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     isOpen: false,
     mode: 'add',
   })
-  const [chapterModalState, setChapterModalState] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; chapter?: Chapter }>({
+  const [chapterModalState, setChapterModalState] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; chapter?: ChapterListDTO }>({
     isOpen: false,
     mode: 'add',
   })
-  const [deleteChapterState, setDeleteChapterState] = useState<{ isOpen: boolean; chapter?: Chapter }>({ isOpen: false })
+  const [deleteChapterState, setDeleteChapterState] = useState<{ isOpen: boolean; chapter?: ChapterListDTO }>({ isOpen: false })
   const [deleteOutlineState, setDeleteOutlineState] = useState<{ isOpen: boolean; outline?: OutlineNode }>({ isOpen: false })
   const [project, setProject] = useState<Project | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -110,7 +110,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const fetchChapters = async () => {
     setIsLoading(true)
     try {
-      const res = await fetchChaptersPage({ projectId: params.id, page: 1, pageSize: 100 })
+      const res = await fetchChaptersListPage({ projectId: params.id, page: 1, pageSize: 100 })
       setChapters(res.data.records)
     } catch (err: any) {
       setHasError(err.message || '章节加载失败')
@@ -418,14 +418,17 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setChapterModalState({ isOpen: true, mode: 'add' })
   }
 
-  const handleSaveChapter = async (chapter: Partial<Chapter>) => {
+  const handleSaveChapter = async (chapterData: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>) => {
     setIsLoading(true)
     try {
       if (chapterModalState.mode === 'add') {
-        const { id, createdAt, updatedAt, ...rest } = chapter
-        await createChapter({ ...rest, projectId: params.id, summary: chapter.summary ?? '' } as Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>)
-      } else if (chapterModalState.mode === 'edit' && chapter.id) {
-        await updateChapter(chapter.id, { ...chapter, summary: chapter.summary ?? '' } as Chapter)
+        await createChapter({ ...chapterData, projectId: params.id, summary: chapterData.summary ?? '' })
+      } else if (chapterModalState.mode === 'edit' && chapterModalState.chapter?.id) {
+        await updateChapter(chapterModalState.chapter.id, { 
+          ...chapterData, 
+          id: chapterModalState.chapter.id,
+          summary: chapterData.summary ?? '' 
+        } as Chapter)
       }
       await fetchChapters()
       setChapterModalState({ isOpen: false, mode: 'add' })
@@ -440,11 +443,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setChapterModalState({ isOpen: false, mode: 'add' })
   }
 
-  const handleEditChapter = (chapter: Chapter) => {
+  const handleEditChapter = (chapter: ChapterListDTO) => {
     setChapterModalState({ isOpen: true, mode: 'edit', chapter })
   }
 
-  const handleDeleteChapter = (chapter: Chapter) => {
+  const handleDeleteChapter = (chapter: ChapterListDTO) => {
     setDeleteChapterState({ isOpen: true, chapter })
   }
 
@@ -509,11 +512,11 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setIsLoading(true)
     try {
       console.log('[章节移动] 提交到后端:', [
-        { id: currentChapter.id, sortOrder: currentChapter },
-        { id: swapChapter.id, sortOrder: swapChapter }
+        { id: currentChapter.id, sortOrder: currentChapter.sortOrder },
+        { id: swapChapter.id, sortOrder: swapChapter.sortOrder }
       ])
-      await updateChapter(currentChapter.id, currentChapter)
-      await updateChapter(swapChapter.id, swapChapter)
+      await updateChapter(currentChapter.id, currentChapter as Chapter)
+      await updateChapter(swapChapter.id, swapChapter as Chapter)
       await fetchChapters()
     } catch (err: any) {
       setHasError(err.message || '章节顺序更新失败')

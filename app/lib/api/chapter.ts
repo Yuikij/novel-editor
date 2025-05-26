@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/env"
-import type { ChapterStatus } from '@/app/types'
+import type { ChapterStatus, ChapterListDTO } from '@/app/types'
 
 export interface Chapter {
   id: string
@@ -28,15 +28,87 @@ function mapToBackend(chapter: any) {
 }
 
 function mapFromBackend(chapter: any) {
+  const { wordCountGoal, ...rest } = chapter
   return {
-    ...chapter,
-    order: chapter.sortOrder,
-    status: (chapter.status === 'draft' || chapter.status === 'in-progress' || chapter.status === 'completed' || chapter.status === 'edited') ? chapter.status : 'draft',
-    targetWordCount: chapter.wordCountGoal,
-  } as Chapter
+    ...rest,
+    targetWordCount: wordCountGoal,
+  }
 }
 
-// 获取章节列表（分页）
+// ============ 新的优化接口（推荐使用） ============
+
+// 获取章节列表（不包含content和historyContent字段）- 推荐
+export async function fetchChaptersList(params?: {
+  projectId?: string
+  title?: string
+  status?: string
+}) {
+  const search = new URLSearchParams({
+    ...(params?.projectId ? { projectId: params.projectId } : {}),
+    ...(params?.title ? { title: params.title } : {}),
+    ...(params?.status ? { status: params.status } : {}),
+  })
+  const res = await fetch(`${API_BASE_URL}/chapters/list?${search}`)
+  if (!res.ok) throw new Error('章节列表获取失败')
+  const data = await res.json()
+  return data.data.map((chapter: any) => ({
+    ...chapter,
+    targetWordCount: chapter.wordCountGoal,
+  }))
+}
+
+// 根据项目ID获取章节列表（不包含content和historyContent字段）- 推荐
+export async function fetchChaptersListByProject(projectId: string) {
+  const res = await fetch(`${API_BASE_URL}/chapters/project/${projectId}/list`)
+  if (!res.ok) throw new Error('获取项目章节列表失败')
+  const data = await res.json()
+  return data.data.map((chapter: any) => ({
+    ...chapter,
+    targetWordCount: chapter.wordCountGoal,
+  }))
+}
+
+// 分页查询章节列表（不包含content和historyContent字段）- 推荐
+export async function fetchChaptersListPage(params: {
+  page?: number
+  pageSize?: number
+  projectId?: string
+  title?: string
+  status?: string
+}) {
+  const search = new URLSearchParams({
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 10),
+    ...(params.projectId ? { projectId: params.projectId } : {}),
+    ...(params.title ? { title: params.title } : {}),
+    ...(params.status ? { status: params.status } : {}),
+  })
+  const res = await fetch(`${API_BASE_URL}/chapters/list/page?${search}`)
+  if (!res.ok) throw new Error('章节列表分页获取失败')
+  const data = await res.json()
+  return {
+    ...data,
+    data: {
+      ...data.data,
+      records: data.data.records.map((chapter: any) => ({
+        ...chapter,
+        targetWordCount: chapter.wordCountGoal,
+      })),
+    },
+  }
+}
+
+// 获取章节详情（包含完整信息）- 新增
+export async function fetchChapterDetail(id: string) {
+  const res = await fetch(`${API_BASE_URL}/chapters/${id}/detail`)
+  if (!res.ok) throw new Error('章节详情获取失败')
+  const data = await res.json()
+  return mapFromBackend(data.data)
+}
+
+// ============ 旧接口（已废弃，保留兼容性） ============
+
+// 获取章节列表（分页）- 已废弃，建议使用 fetchChaptersListPage
 export async function fetchChaptersPage(params: {
   page?: number
   pageSize?: number
@@ -63,13 +135,23 @@ export async function fetchChaptersPage(params: {
   }
 }
 
-// 获取单个章节
+// 获取单个章节 - 已废弃，建议使用 fetchChapterDetail
 export async function fetchChapter(id: string) {
   const res = await fetch(`${API_BASE_URL}/chapters/${id}`)
   if (!res.ok) throw new Error('章节详情获取失败')
   const data = await res.json()
   return mapFromBackend(data.data)
 }
+
+// 获取项目下所有章节 - 已废弃，建议使用 fetchChaptersListByProject
+export async function fetchChaptersByProject(projectId: string) {
+  const res = await fetch(`${API_BASE_URL}/chapters/project/${projectId}`)
+  if (!res.ok) throw new Error('获取项目章节失败')
+  const data = await res.json()
+  return data.data.map(mapFromBackend)
+}
+
+// ============ 其他接口（保持不变） ============
 
 // 新建章节
 export async function createChapter(chapter: Omit<Chapter, 'id'>) {
@@ -145,14 +227,6 @@ export async function autoExpandChapters(projectId: string, targetCount: number 
     method: 'POST',
   })
   if (!res.ok) throw new Error('章节自动扩展失败')
-  const data = await res.json()
-  return data.data.map(mapFromBackend)
-}
-
-// 获取项目下所有章节
-export async function fetchChaptersByProject(projectId: string) {
-  const res = await fetch(`${API_BASE_URL}/chapters/project/${projectId}`)
-  if (!res.ok) throw new Error('获取项目章节失败')
   const data = await res.json()
   return data.data.map(mapFromBackend)
 }

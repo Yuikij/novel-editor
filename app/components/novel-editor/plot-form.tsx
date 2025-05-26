@@ -2,18 +2,18 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/app/components/ui/button"
-import type { PlotElement, Chapter, Character, Entry, Template } from "@/app/types"
+import type { PlotElement, ChapterListDTO, Character, Entry, Template, TemplateListDTO } from "@/app/types"
 import { z } from "zod"
 import { fetchCharactersPage } from "@/app/lib/api/character"
 import { fetchEntriesPage } from "@/app/lib/api/entry"
-import { fetchTemplatesPage } from "@/app/lib/api/template"
+import { fetchTemplatesList, fetchTemplateDetail } from "@/app/lib/api/template"
 import { useLanguage } from '@/app/lib/i18n/language-context'
 
 interface PlotFormProps {
   plot?: PlotElement
   onSave: (plot: PlotElement) => void
   onCancel: () => void
-  chapters: Chapter[]
+  chapters: ChapterListDTO[]
   projectId?: string
 }
 
@@ -53,9 +53,10 @@ export default function PlotForm({
   const [entriesError, setEntriesError] = useState<string | null>(null)
 
   // 模板列表相关 state
-  const [templates, setTemplates] = useState<Template[]>([])
+  const [templates, setTemplates] = useState<TemplateListDTO[]>([])
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
   const [templatesError, setTemplatesError] = useState<string | null>(null)
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false)
 
   // 表单 state，包含 characterIds, itemIds 和 templateId
   const [form, setForm] = useState<PlotElement>({
@@ -109,9 +110,9 @@ export default function PlotForm({
   // 获取模板列表
   useEffect(() => {
     setIsLoadingTemplates(true)
-    fetchTemplatesPage({ 
+    fetchTemplatesList({ 
       page: 1, 
-      pageSize: 100 
+      size: 100 
     })
       .then(res => setTemplates(res.data.records))
       .catch(err => setTemplatesError(err.message || "模板加载失败"))
@@ -135,17 +136,20 @@ export default function PlotForm({
   }
 
   // 选择模板后填充模板内容
-  const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleTemplateChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateId = e.target.value;
     setForm(prev => ({ ...prev, templateId }));
 
     if (templateId) {
-      const selectedTemplate = templates.find(t => t.id === templateId);
-      if (selectedTemplate) {
+      try {
+        setIsLoadingTemplate(true)
+        // 获取完整的模板详情
+        const fullTemplate = await fetchTemplateDetail(templateId);
+        
         // 根据模板内容填充表单 (可以根据需要调整填充的字段)
         try {
           // 尝试解析模板内容
-          const templateData = JSON.parse(selectedTemplate.content);
+          const templateData = JSON.parse(fullTemplate.content);
           setForm(prev => ({
             ...prev,
             type: templateData.type || prev.type,
@@ -156,9 +160,13 @@ export default function PlotForm({
           // 如果内容不是JSON, 可能是纯文本模板，直接设置为描述
           setForm(prev => ({
             ...prev,
-            description: selectedTemplate.content || prev.description
+            description: fullTemplate.content || prev.description
           }));
         }
+      } catch (err) {
+        setTemplatesError(err instanceof Error ? err.message : '获取模板详情失败')
+      } finally {
+        setIsLoadingTemplate(false)
       }
     }
   };

@@ -5,7 +5,7 @@ import { Button } from "@/app/components/ui/button"
 import type { NovelProject, NovelMetadata, WorldBuilding, Template } from "@/app/types"
 import { createProject, updateProject, Project } from '@/app/lib/api/project'
 import { API_BASE_URL } from '@/app/lib/config/env'
-import { fetchTemplatesPage } from '@/app/lib/api/template'
+import { fetchTemplatesList } from '@/app/lib/api/template'
 
 // Define the structure for the AI name suggestion
 interface NameSuggestion {
@@ -45,9 +45,9 @@ export default function NovelSettingsForm({
   // 获取模板列表
   useEffect(() => {
     setIsLoadingTemplates(true)
-    fetchTemplatesPage({ 
+    fetchTemplatesList({ 
       page: 1, 
-      pageSize: 100 
+      size: 100 
     })
       .then(res => setTemplates(res.data.records))
       .catch(err => setTemplatesError(err.message || "模板加载失败"))

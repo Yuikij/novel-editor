@@ -37,8 +37,59 @@ export interface Template {
   name: string
   tags: string
   content: string
+  // 向量化相关字段
+  vectorStatus?: VectorStatus
+  vectorProgress?: number
+  vectorStartTime?: string
+  vectorEndTime?: string
+  vectorErrorMessage?: string
+  canChat?: boolean
 }
- 
+
+// Template List DTO - 用于列表查询，不包含content字段以提升性能
+export interface TemplateListDTO {
+  id: string
+  name: string
+  tags: string
+  // 向量化相关字段
+  vectorStatus?: VectorStatus
+  vectorProgress?: number
+  vectorStartTime?: string
+  vectorEndTime?: string
+  vectorErrorMessage?: string
+  canChat?: boolean
+}
+
+// 向量化状态枚举
+export type VectorStatus = 'NOT_INDEXED' | 'INDEXING' | 'INDEXED' | 'FAILED'
+
+// 模板向量化进度DTO
+export interface TemplateVectorProgressDTO {
+  templateId: string
+  templateName: string
+  vectorStatus: VectorStatus
+  vectorProgress: number
+  vectorStartTime?: string
+  vectorEndTime?: string
+  vectorErrorMessage?: string
+  canChat: boolean
+}
+
+// 模板对话请求
+export interface TemplateChatRequest {
+  templateId: string
+  message: string
+  conversationId?: string
+  maxResults?: number
+  similarityThreshold?: number
+}
+
+// 模板对话响应
+export interface TemplateChatResponse {
+  content: string
+  conversationId?: string
+}
+
 // Character Types
 export interface Character {
   id: string
@@ -101,6 +152,23 @@ export interface Chapter {
   notes?: string
   type?: string
   templateId?: string
+}
+
+// Chapter List DTO - 用于列表查询，不包含content和historyContent字段以提升性能
+export interface ChapterListDTO {
+  id: string
+  projectId?: string
+  templateId?: string
+  title: string
+  sortOrder: number
+  status: ChapterStatus
+  summary?: string
+  notes?: string
+  wordCountGoal?: number
+  wordCount: number
+  type?: string
+  createdAt: string
+  updatedAt: string
 }
 
 // Plot and Outline Types

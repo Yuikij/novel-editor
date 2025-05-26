@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/app/components/ui/button"
 import { IconRobot, IconDeviceFloppy, IconEye, IconEdit, IconMaximize, IconMinimize } from "@tabler/icons-react"
 import { FaFont } from "react-icons/fa"
-import { fetchChapter, updateChapter, fetchChapterHistory, fetchChapterHistoryVersion, restoreChapterFromHistory, deleteChapterHistoryVersion } from "@/app/lib/api/chapter"
+import { fetchChapterDetail, updateChapter, fetchChapterHistory, fetchChapterHistoryVersion, restoreChapterFromHistory, deleteChapterHistoryVersion } from "@/app/lib/api/chapter"
 import { fetchFirstIncompletePlot, updatePlot, Plot } from "@/app/lib/api/plot"
 import { fetchCharactersByProject, Character } from "@/app/lib/api/character"
-import { fetchTemplatesPage } from "@/app/lib/api/template"
+import { fetchTemplatesList } from "@/app/lib/api/template"
 import { fetchEntriesPage } from "@/app/lib/api/entry"
-import type { Template, Entry } from "@/app/types"
+import type { Template, Entry, TemplateListDTO } from "@/app/types"
 import debounce from "lodash.debounce"
 import dynamic from "next/dynamic"
 import "@uiw/react-md-editor/markdown-editor.css"
@@ -73,7 +73,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const [plotItemIds, setPlotItemIds] = useState<string[]>([])
   const [plotWordCountGoal, setPlotWordCountGoal] = useState<number | undefined>(undefined)
   const [characters, setCharacters] = useState<Character[]>([])
-  const [templates, setTemplates] = useState<Template[]>([])
+  const [templates, setTemplates] = useState<TemplateListDTO[]>([])
   const [entries, setEntries] = useState<Entry[]>([])
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -218,7 +218,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
       setIsLoading(true)
       setError(null)
       try {
-        const data = await fetchChapter(chapterId)
+        const data = await fetchChapterDetail(chapterId)
         setChapter(data)
         const chapterContent = data.content || ""
         setContent(chapterContent)
@@ -270,7 +270,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         // 并行加载所有数据
         const [charactersRes, templatesRes, entriesRes] = await Promise.all([
           fetchCharactersByProject(projectId),
-          fetchTemplatesPage({ page: 1, pageSize: 100 }),
+          fetchTemplatesList({ page: 1, size: 100 }),
           fetchEntriesPage({ page: 1, pageSize: 100 })
         ])
         
