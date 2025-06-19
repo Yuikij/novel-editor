@@ -19,12 +19,15 @@ function mapPlotToPlotElement(plot?: Plot): PlotElement | undefined {
     id: plot.id,
     title: plot.title,
     description: plot.description ?? "",
-    position: typeof plot.plotOrder === "number" ? plot.plotOrder : 1,
+    sortOrder: typeof plot.sortOrder === "number" ? plot.sortOrder : 1,
     chapterId: plot.chapterId,
     characterIds: plot.characterIds,
     itemIds: plot.itemIds,
     templateId: plot.templateId,
-    status: "planned", // or infer from plot if available
+    status: plot.status || "planned",
+    completionPercentage: plot.completionPercentage,
+    wordCountGoal: plot.wordCountGoal,
+    type: plot.type,
   };
 }
 
@@ -80,14 +83,21 @@ export default function PlotsPage() {
     setModalState({ isOpen: true, mode: "delete", plot })
   }
 
-  const handleSavePlot = async (plot: Plot) => {
+  const handleSavePlot = async (plotElement: PlotElement) => {
     setIsLoading(true)
     setError(null)
     try {
+      // Convert PlotElement to Plot format for API
+      const plotData: Plot = {
+        ...plotElement,
+        // Get the active project ID from localStorage if available
+        projectId: localStorage.getItem('activeProjectId') || undefined,
+      }
+      
       if (modalState.mode === "add") {
-        await createPlot(plot)
-      } else if (modalState.mode === "edit" && plot.id) {
-        await updatePlot(plot.id, plot)
+        await createPlot(plotData)
+      } else if (modalState.mode === "edit" && plotElement.id) {
+        await updatePlot(plotElement.id, plotData)
       }
       await fetchList()
       setModalState({ isOpen: false, mode: "add" })

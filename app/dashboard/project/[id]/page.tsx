@@ -22,7 +22,7 @@ import PlotAutoExpand from "@/app/components/novel-editor/plot-auto-expand"
 import { fetchProject, Project } from "@/app/lib/api/project"
 import { fetchChaptersListPage, createChapter, updateChapter, deleteChapter, batchDeleteChapters, autoExpandChapters } from '@/app/lib/api/chapter'
 import { fetchCharactersByProject, createCharacter, updateCharacter, deleteCharacter as deleteCharacterApi } from '@/app/lib/api/character'
-import { deletePlot, fetchPlotsPage, createPlot, updatePlot, batchDeletePlots, autoExpandPlots } from '@/app/lib/api/plot'
+import { deletePlot, fetchPlotsPage, createPlot, updatePlot, batchDeletePlots, autoExpandPlots, Plot } from '@/app/lib/api/plot'
 import { fetchOutlinePlotPointsPage, createOutlinePlotPoint, updateOutlinePlotPoint, deleteOutlinePlotPoint, autoExpandOutlinePlotPoints, batchDeleteOutlinePlotPoints } from '@/app/lib/api/outline-plot-point'
 import { fetchCharacter } from '@/app/lib/api/character'
 import { toast } from 'react-hot-toast'
@@ -244,10 +244,16 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     setIsPlotsLoading(true)
     setPlotsError(null)
     try {
+      // Convert PlotElement to Plot format for API
+      const plotData: Plot = {
+        ...plot,
+        projectId: params.id,
+      }
+      
       if (plotModalState.mode === 'add') {
-        await createPlot({ ...plot, projectId: params.id })
+        await createPlot(plotData)
       } else if (plotModalState.mode === 'edit' && plot.id) {
-        await updatePlot(plot.id, { ...plot, projectId: params.id })
+        await updatePlot(plot.id, plotData)
       }
       await fetchPlots()
       setPlotModalState({ isOpen: false, mode: 'add' })

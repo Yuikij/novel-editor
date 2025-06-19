@@ -21,7 +21,7 @@ export const plotSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(1, "标题不能为空"),
   description: z.string().optional(),
-  position: z.number().min(1),
+  sortOrder: z.number().min(1),
   status: z.string().min(1, "状态不能为空"),
   chapterId: z.string().optional(),
   characterIds: z.array(z.string()).optional(),
@@ -63,7 +63,7 @@ export default function PlotForm({
     id: plot?.id || `plot-${Date.now()}`,
     title: plot?.title || "",
     description: plot?.description || "",
-    position: plot?.position || 1,
+    sortOrder: plot?.sortOrder || 1,
     status: plot?.status || "未开始",
     chapterId: plot?.chapterId || (chapters[0]?.id ?? ""),
     characterIds: plot?.characterIds || [],
@@ -326,15 +326,15 @@ export default function PlotForm({
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <label htmlFor="position" className="block text-sm font-medium">
+            <label htmlFor="sortOrder" className="block text-sm font-medium">
               顺序
             </label>
             <input
-              id="position"
-              name="position"
+              id="sortOrder"
+              name="sortOrder"
               type="number"
               min="1"
-              value={form.position}
+              value={form.sortOrder}
               onChange={handleFormChange}
               className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />

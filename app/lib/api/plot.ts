@@ -6,7 +6,6 @@ export interface Plot {
   title: string
   type?: string
   description?: string
-  plotOrder?: number
   createdAt?: string
   updatedAt?: string
   chapterId?: string

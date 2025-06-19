@@ -183,7 +183,7 @@ export interface PlotElement {
   id: string
   title: string
   description: string
-  position: number
+  sortOrder: number
   chapterId?: string
   status: string
   characterIds?: string[]
