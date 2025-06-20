@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/app/components/ui/button"
-import { IconRobot, IconDeviceFloppy, IconEye, IconEdit, IconMaximize, IconMinimize } from "@tabler/icons-react"
+import { NumberInput } from "@/app/components/ui/number-input"
+import { IconRobot, IconDeviceFloppy, IconEye, IconEdit, IconMaximize, IconMinimize, IconChevronLeft, IconChevronRight, IconRefresh } from "@tabler/icons-react"
 import { FaFont } from "react-icons/fa"
-import { fetchChapterDetail, updateChapter, fetchChapterHistory, fetchChapterHistoryVersion, restoreChapterFromHistory, deleteChapterHistoryVersion } from "@/app/lib/api/chapter"
-import { fetchFirstIncompletePlot, updatePlot, Plot } from "@/app/lib/api/plot"
+import { fetchChapterDetail, updateChapter } from "@/app/lib/api/chapter"
+import { fetchFirstIncompletePlot, updatePlot, fetchPlotByChapterAndSortOrder, Plot } from "@/app/lib/api/plot"
 import { fetchCharactersByProject, Character } from "@/app/lib/api/character"
 import { fetchTemplatesList } from "@/app/lib/api/template"
 import { fetchEntriesPage } from "@/app/lib/api/entry"
@@ -72,15 +73,13 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const [plotCharacterIds, setPlotCharacterIds] = useState<string[]>([])
   const [plotItemIds, setPlotItemIds] = useState<string[]>([])
   const [plotWordCountGoal, setPlotWordCountGoal] = useState<number | undefined>(undefined)
+  const [plotCompletionPercentage, setPlotCompletionPercentage] = useState<number>(0)
   const [characters, setCharacters] = useState<Character[]>([])
   const [templates, setTemplates] = useState<TemplateListDTO[]>([])
   const [entries, setEntries] = useState<Entry[]>([])
   const [isLoadingData, setIsLoadingData] = useState(false)
-  const [showHistory, setShowHistory] = useState(false)
-  const [historyVersions, setHistoryVersions] = useState<any[]>([])
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
-  const [selectedHistoryVersion, setSelectedHistoryVersion] = useState<any>(null)
-  const [showHistoryPreview, setShowHistoryPreview] = useState(false)
+  const [currentIncompletePlot, setCurrentIncompletePlot] = useState<Plot | null>(null) // 真正的当前需要创作的情节
+  const [isViewingCurrentPlot, setIsViewingCurrentPlot] = useState(true) // 是否正在查看当前需要创作的情节
 
   // 通知后端内容已消费完成
   const notifyContentConsumed = async (planId: string) => {
@@ -241,7 +240,9 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
     const loadIncompletePlot = async () => {
       try {
         const plot = await fetchFirstIncompletePlot(chapterId)
+        setCurrentIncompletePlot(plot) // 保存真正的当前需要创作的情节
         setIncompletePlot(plot)
+        setIsViewingCurrentPlot(true) // 初始时查看的就是当前需要创作的情节
         if (plot) {
           setPlotTitle(plot.title || "")
           setPlotDescription(plot.description || "")
@@ -250,6 +251,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
           setPlotCharacterIds(plot.characterIds || [])
           setPlotItemIds(plot.itemIds || [])
           setPlotWordCountGoal(plot.wordCountGoal)
+          setPlotCompletionPercentage(plot.completionPercentage || 0)
         }
       } catch (err: any) {
         console.error("加载未完成情节失败:", err)
@@ -495,6 +497,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         characterIds: plotCharacterIds,
         itemIds: plotItemIds,
         wordCountGoal: plotWordCountGoal,
+        completionPercentage: plotCompletionPercentage,
       }
       await updatePlot(incompletePlot.id, updatedPlot)
       setIncompletePlot(updatedPlot)
@@ -516,111 +519,102 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
       setPlotCharacterIds(incompletePlot.characterIds || [])
       setPlotItemIds(incompletePlot.itemIds || [])
       setPlotWordCountGoal(incompletePlot.wordCountGoal)
+      setPlotCompletionPercentage(incompletePlot.completionPercentage || 0)
     }
     setIsEditingPlot(false)
   }
 
-  // 加载历史记录
-  const loadHistory = async () => {
-    if (!chapterId) return
+  // 切换到上一个情节
+  const switchToPreviousPlot = async () => {
+    if (!chapterId || !incompletePlot?.sortOrder) return
     
-    setIsLoadingHistory(true)
-    try {
-      const history = await fetchChapterHistory(chapterId)
-      // 确保history是数组类型
-      const historyArray = Array.isArray(history) ? history : (history ? [history] : [])
-      setHistoryVersions(historyArray)
-      setShowHistory(true)
-    } catch (err: any) {
-      console.error("加载历史记录失败:", err)
-      toast.error("加载历史记录失败")
-      // 出错时设置为空数组
-      setHistoryVersions([])
-    } finally {
-      setIsLoadingHistory(false)
+    const previousSortOrder = incompletePlot.sortOrder - 1
+    if (previousSortOrder < 1) {
+      toast.error("已经是第一个情节了")
+      return
     }
-  }
-
-  // 预览历史版本
-  const previewHistoryVersion = async (version: any) => {
-    if (!chapterId) return
     
     try {
-      // 如果版本对象中已经有内容，直接使用
-      if (version.content) {
-        setSelectedHistoryVersion(version)
-        setShowHistoryPreview(true)
+      const previousPlot = await fetchPlotByChapterAndSortOrder(chapterId, previousSortOrder)
+      if (previousPlot) {
+        setIncompletePlot(previousPlot)
+        setPlotTitle(previousPlot.title || "")
+        setPlotDescription(previousPlot.description || "")
+        setPlotType(previousPlot.type || "")
+        setPlotTemplateId(previousPlot.templateId || "")
+        setPlotCharacterIds(previousPlot.characterIds || [])
+        setPlotItemIds(previousPlot.itemIds || [])
+        setPlotWordCountGoal(previousPlot.wordCountGoal)
+        setPlotCompletionPercentage(previousPlot.completionPercentage || 0)
+        setIsEditingPlot(false)
+        setIsViewingCurrentPlot(false) // 标记不再查看当前需要创作的情节
+        toast.success("已切换到上一个情节")
       } else {
-        // 否则从API获取内容
-        const fetchedContent = await fetchChapterHistoryVersion(chapterId, version.timestamp)
-        setSelectedHistoryVersion({
-          ...version,
-          content: fetchedContent
-        })
-        setShowHistoryPreview(true)
+        toast.error("没有找到上一个情节")
       }
     } catch (err: any) {
-      console.error("预览历史版本失败:", err)
-      toast.error("预览历史版本失败")
+      console.error("切换到上一个情节失败:", err)
+      toast.error("切换失败")
     }
   }
 
-  // 恢复历史版本
-  const restoreHistoryVersion = async (version: any) => {
-    if (!chapterId || !chapter) return
+  // 切换到下一个情节
+  const switchToNextPlot = async () => {
+    if (!chapterId || !incompletePlot?.sortOrder) return
+    
+    const nextSortOrder = incompletePlot.sortOrder + 1
     
     try {
-      // 如果版本对象中已经有内容，直接恢复
-      if (version.content) {
-        const restoredContent = version.content
-        setContent(restoredContent)
-        contentRef.current = restoredContent // 同步更新ref
-        countWords(restoredContent)
-        
-        // 更新章节对象
-        const updatedChapter = {
-          ...chapter,
-          content: restoredContent,
-          wordCount: version.wordCount || restoredContent.length
-        }
-        setChapter(updatedChapter)
-        
-        setShowHistoryPreview(false)
-        setShowHistory(false)
-        toast.success("历史版本已恢复")
-        
-        // 保存恢复的内容
-        await saveContent(restoredContent)
+      const nextPlot = await fetchPlotByChapterAndSortOrder(chapterId, nextSortOrder)
+      if (nextPlot) {
+        setIncompletePlot(nextPlot)
+        setPlotTitle(nextPlot.title || "")
+        setPlotDescription(nextPlot.description || "")
+        setPlotType(nextPlot.type || "")
+        setPlotTemplateId(nextPlot.templateId || "")
+        setPlotCharacterIds(nextPlot.characterIds || [])
+        setPlotItemIds(nextPlot.itemIds || [])
+        setPlotWordCountGoal(nextPlot.wordCountGoal)
+        setPlotCompletionPercentage(nextPlot.completionPercentage || 0)
+        setIsEditingPlot(false)
+        setIsViewingCurrentPlot(false) // 标记不再查看当前需要创作的情节
+        toast.success("已切换到下一个情节")
       } else {
-        // 否则调用API恢复
-        const restoredChapter = await restoreChapterFromHistory(chapterId, version.timestamp)
-        setChapter(restoredChapter)
-        const restoredContent = restoredChapter.content || ""
-        setContent(restoredContent)
-        contentRef.current = restoredContent // 同步更新ref
-        countWords(restoredContent)
-        setShowHistoryPreview(false)
-        setShowHistory(false)
-        toast.success("历史版本已恢复")
+        toast.error("没有找到下一个情节")
       }
     } catch (err: any) {
-      console.error("恢复历史版本失败:", err)
-      toast.error("恢复历史版本失败")
+      console.error("切换到下一个情节失败:", err)
+      toast.error("切换失败")
     }
   }
 
-  // 删除历史版本
-  const deleteHistoryVersion = async (version: any) => {
+  // 回到当前需要创作的情节
+  const backToCurrentPlot = async () => {
     if (!chapterId) return
     
     try {
-      await deleteChapterHistoryVersion(chapterId, version.timestamp)
-      // 重新加载历史记录
-      await loadHistory()
-      toast.success("历史版本已删除")
+      // 重新调用API获取最新的当前需要创作的情节
+      const plot = await fetchFirstIncompletePlot(chapterId)
+      if (plot) {
+        setCurrentIncompletePlot(plot) // 更新记录的当前情节
+        setIncompletePlot(plot)
+        setPlotTitle(plot.title || "")
+        setPlotDescription(plot.description || "")
+        setPlotType(plot.type || "")
+        setPlotTemplateId(plot.templateId || "")
+        setPlotCharacterIds(plot.characterIds || [])
+        setPlotItemIds(plot.itemIds || [])
+        setPlotWordCountGoal(plot.wordCountGoal)
+        setPlotCompletionPercentage(plot.completionPercentage || 0)
+        setIsEditingPlot(false)
+        setIsViewingCurrentPlot(true)
+        toast.success("已回到当前需要创作的情节")
+      } else {
+        toast.error("没有找到需要创作的情节")
+      }
     } catch (err: any) {
-      console.error("删除历史版本失败:", err)
-      toast.error("删除历史版本失败")
+      console.error("获取当前需要创作的情节失败:", err)
+      toast.error("获取失败")
     }
   }
 
@@ -759,19 +753,19 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
         // 根据API响应，判断生成状态
         // 状态枚举： 0-计划中，1-执行中，2-生成中，3-已完成
         if (progressData.code === 200) {
-          // 接收到完成状态，直接保存当前内容
+          // 只有在最终完成状态时才保存全文（避免多次保存）
           if (progressData.data?.state === 3 && 
               progressData.data?.progress === 100 && 
               progressData.data?.stateMessage === "已完成") {
-            console.log('[CRITICAL] 接收到完成状态响应，确保内容已保存');
+            console.log('[CRITICAL] 接收到最终完成状态，执行唯一的保存操作');
             console.log('[DEBUG CONTENT] 当前内容长度:', content.length);
             console.log('[DEBUG CONTENT] contentRef当前内容长度:', contentRef.current.length);
-            // 自动保存所有生成的内容
-            debouncedSave.cancel(); // 取消任何待处理的自动保存
-            // 使用当前state中的content，确保保存最新内容
-            const currentContent = contentRef.current; // Use ref for most up-to-date value
+            // 取消任何待处理的自动保存
+            debouncedSave.cancel();
+            // 使用contentRef获取最新的完整内容
+            const currentContent = contentRef.current;
             console.log('[DEBUG CONTENT] 保存时的内容长度:', currentContent.length);
-            await saveContent(currentContent); // 直接调用保存，确保包含所有流式生成的内容
+            await saveContent(currentContent); // 执行唯一的保存操作
             
             // 重新执行之前的清理工作和状态更新
             localStorage.removeItem('generation_polling_active');
@@ -921,16 +915,9 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                       // 通知成功后，不需要停止轮询，会继续下一次progress检查
                       // 如果state仍然为2，将会再次获取新的内容
                       
-                      // 新增：每次成功获取内容后自动保存当前内容
-                      console.log('[IMPORTANT] 内容块处理完成后自动保存');
-                      console.log('[DEBUG CONTENT] 完成通知后 - 当前内容长度:', content.length);
-                      
-                      // 捕获当前content确保是最新的
-                      setTimeout(() => {
-                        console.log('[DEBUG CONTENT] 延迟保存 - 当前内容长度:', content.length);
-                        console.log('[DEBUG CONTENT] 延迟保存 - contentRef长度:', contentRef.current.length);
-                        debouncedSave(contentRef.current); // 使用contentRef的值确保最新内容
-                      }, 100);
+                      // 移除：每次成功获取内容后的自动保存（避免多次保存）
+                      // 只在最终完成时保存一次全文
+                      console.log('[DEBUG] 内容块处理完成，等待最终完成状态再保存');
                     }
                   } else {
                     console.error('[ERROR] 内容未能成功处理');
@@ -967,17 +954,17 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               // 完成内容生成标记（不再继续轮询）
               setIsGenerating(false);
               
-              // 新增：生成完成时自动保存当前内容
-              console.log('[IMPORTANT] 生成完成后自动保存内容');
-              console.log('[DEBUG CONTENT] case 3 - 当前内容长度:', content.length);
-              console.log('[DEBUG CONTENT] case 3 - contentRef当前内容长度:', contentRef.current.length);
-              // 取消任何待处理的自动保存
-              debouncedSave.cancel();
-              // 获取当前最新content并保存
-              const latestContent = contentRef.current; // Use ref for most up-to-date value
-              console.log('[DEBUG CONTENT] case 3 - 保存时的内容长度:', latestContent.length);
-              // 直接调用保存函数，确保包含所有流式生成的内容
-              await saveContent(latestContent);
+              // 移除：生成完成时的重复自动保存（已在特殊判断条件中处理）
+              // console.log('[IMPORTANT] 生成完成后自动保存内容');
+              // console.log('[DEBUG CONTENT] case 3 - 当前内容长度:', content.length);
+              // console.log('[DEBUG CONTENT] case 3 - contentRef当前内容长度:', contentRef.current.length);
+              // // 取消任何待处理的自动保存
+              // debouncedSave.cancel();
+              // // 获取当前最新content并保存
+              // const latestContent = contentRef.current; // Use ref for most up-to-date value
+              // console.log('[DEBUG CONTENT] case 3 - 保存时的内容长度:', latestContent.length);
+              // // 直接调用保存函数，确保包含所有流式生成的内容
+              // await saveContent(latestContent);
               break;
             default:
               console.log('[DEBUG] 未知状态:', progressData.data?.state);
@@ -1189,14 +1176,6 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               <IconDeviceFloppy className="mr-1 h-4 w-4" />
               保存
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={loadHistory}
-              disabled={isLoadingHistory}
-            >
-              {isLoadingHistory ? "加载中..." : "历史记录"}
-            </Button>
           </div>
         </div>
         
@@ -1266,36 +1245,63 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
             <h3 className="font-semibold">AI 写作助手</h3>
           </div>
           <div className="space-y-4 p-4">
-            {/* 历史记录 */}
-            <div className="rounded-md bg-accent/50 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-medium">章节历史</h4>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={loadHistory}
-                  disabled={isLoadingHistory}
-                >
-                  {isLoadingHistory ? "加载中..." : "查看历史"}
-                </Button>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                查看和恢复章节的历史版本。
-              </p>
-            </div>
+
             
             {/* 未完成的情节 */}
             {incompletePlot && (
               <div className="rounded-md bg-accent/50 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium">当前需要创作的情节</h4>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setIsEditingPlot(!isEditingPlot)}
-                  >
-                    {isEditingPlot ? "取消" : "编辑"}
-                  </Button>
+                <div className="space-y-2 mb-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">
+                      {isViewingCurrentPlot ? "当前需要创作的情节" : "查看情节"}
+                    </h4>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setIsEditingPlot(!isEditingPlot)}
+                    >
+                      {isEditingPlot ? "取消" : "编辑"}
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center border rounded-md">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={switchToPreviousPlot}
+                          disabled={!incompletePlot?.sortOrder || incompletePlot.sortOrder <= 1}
+                          className="h-7 w-7 p-0 rounded-r-none border-r"
+                        >
+                          <IconChevronLeft className="h-3 w-3" />
+                        </Button>
+                        <div className="px-2 py-1 text-xs text-muted-foreground bg-muted/50 min-w-[24px] text-center">
+                          {incompletePlot?.sortOrder || 1}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={switchToNextPlot}
+                          className="h-7 w-7 p-0 rounded-l-none border-l"
+                        >
+                          <IconChevronRight className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {!isViewingCurrentPlot && currentIncompletePlot && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={backToCurrentPlot}
+                        className="h-7 px-3 text-xs"
+                      >
+                        <IconRefresh className="h-3 w-3 mr-1" />
+                        回到当前
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 
                 {isEditingPlot ? (
@@ -1316,7 +1322,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                       onChange={e => setPlotDescription(e.target.value)}
                     />
                     
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className="text-xs text-muted-foreground">类型</label>
                         <select
@@ -1336,13 +1342,22 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                       
                       <div>
                         <label className="text-xs text-muted-foreground">字数目标</label>
-                        <input
-                          type="number"
-                          className="w-full rounded border bg-background px-2 py-1 text-sm"
+                        <NumberInput
+                          value={plotWordCountGoal}
+                          onChange={setPlotWordCountGoal}
                           placeholder="字数目标"
-                          value={plotWordCountGoal || ""}
-                          onChange={e => setPlotWordCountGoal(e.target.value ? Number(e.target.value) : undefined)}
                           min={0}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs text-muted-foreground">完成度(%)</label>
+                        <NumberInput
+                          value={plotCompletionPercentage}
+                          onChange={(value) => setPlotCompletionPercentage(value || 0)}
+                          placeholder="0-100"
+                          min={0}
+                          max={100}
                         />
                       </div>
                     </div>
@@ -1428,7 +1443,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-3 gap-2 text-xs">
                       <div>
                         <span className="text-muted-foreground">类型: </span>
                         <span>{incompletePlot.type || "未设置"}</span>
@@ -1436,6 +1451,10 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                       <div>
                         <span className="text-muted-foreground">字数目标: </span>
                         <span>{incompletePlot.wordCountGoal || "未设置"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">完成度: </span>
+                        <span>{incompletePlot.completionPercentage || 0}%</span>
                       </div>
                     </div>
                     
@@ -1471,22 +1490,11 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                         </div>
                       </div>
                     )}
-                    
-                    <div className="text-xs text-muted-foreground">
-                      完成度: {incompletePlot.completionPercentage || 0}%
-                    </div>
                   </div>
                 )}
               </div>
             )}
-            
-            <div className="rounded-md bg-accent/50 p-3">
-              <h4 className="font-medium">情感节奏</h4>
-              <p className="mt-1 text-sm text-muted-foreground">
-                分析当前章节的情感起伏和节奏变化，提供优化建议。
-              </p>
-              <Button size="sm" className="mt-2 w-full" onClick={() => toast('情感节奏功能开发中，敬请期待')}>分析情感节奏</Button>
-            </div>
+
             <div className="rounded-md bg-accent/50 p-3">
               <h4 className="font-medium">内容生成</h4>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -1673,116 +1681,6 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
                 >
                   时间转场
                 </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* 历史记录弹窗 */}
-      {showHistory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-2xl max-h-[80vh] rounded-lg border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b p-4">
-              <h2 className="text-lg font-semibold">章节历史记录</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowHistory(false)}
-              >
-                ✕
-              </Button>
-            </div>
-            
-            <div className="p-4 max-h-[60vh] overflow-y-auto">
-              {!Array.isArray(historyVersions) || historyVersions.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">
-                  暂无历史记录
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {historyVersions.map((version, index) => (
-                    <div key={version.timestamp || index} className="border rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-medium">
-                          版本 {index + 1}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {version.createdAt ? new Date(version.createdAt).toLocaleString() : version.timestamp}
-                        </div>
-                      </div>
-                      
-                      <div className="text-sm text-muted-foreground mb-3">
-                        字数: {version.wordCount || "未知"}
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => previewHistoryVersion(version)}
-                        >
-                          预览
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => restoreHistoryVersion(version)}
-                        >
-                          恢复
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => deleteHistoryVersion(version)}
-                        >
-                          删除
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* 历史版本预览弹窗 */}
-      {showHistoryPreview && selectedHistoryVersion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-4xl max-h-[90vh] rounded-lg border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b p-4">
-              <h2 className="text-lg font-semibold">
-                历史版本预览 - {selectedHistoryVersion.createdAt ? 
-                  new Date(selectedHistoryVersion.createdAt).toLocaleString() : 
-                  selectedHistoryVersion.timestamp}
-              </h2>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => restoreHistoryVersion(selectedHistoryVersion)}
-                >
-                  恢复此版本
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowHistoryPreview(false)}
-                >
-                  ✕
-                </Button>
-              </div>
-            </div>
-            
-            <div className="p-4 max-h-[70vh] overflow-y-auto">
-              <div className="mb-4 text-sm text-muted-foreground">
-                字数: {selectedHistoryVersion.wordCount || "未知"}
-              </div>
-              
-              <div className="prose prose-sm max-w-none bg-muted/30 p-4 rounded">
-                <pre className="whitespace-pre-wrap font-sans text-sm">
-                  {selectedHistoryVersion.content || "内容为空"}
-                </pre>
               </div>
             </div>
           </div>

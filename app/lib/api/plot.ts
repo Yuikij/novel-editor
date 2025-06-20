@@ -125,4 +125,17 @@ export async function fetchFirstIncompletePlot(chapterId: string) {
   }
   const data = await res.json()
   return mapFromBackend(data.data)
+}
+
+// 根据章节ID和排序查找情节
+export async function fetchPlotByChapterAndSortOrder(chapterId: string, sortOrder: number) {
+  const res = await fetch(`${API_BASE_URL}/plots/chapter/${chapterId}/sort-order/${sortOrder}`)
+  if (!res.ok) {
+    if (res.status === 404) {
+      return null // 没有找到对应排序的情节
+    }
+    throw new Error('获取情节失败')
+  }
+  const data = await res.json()
+  return mapFromBackend(data.data)
 } 
