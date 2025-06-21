@@ -13,6 +13,9 @@ import { fetchEntriesPage } from "@/app/lib/api/entry"
 import type { Template, Entry, TemplateListDTO } from "@/app/types"
 import debounce from "lodash.debounce"
 import dynamic from "next/dynamic"
+
+// 动态导入FloatingChatBot组件
+const FloatingChatBot = dynamic(() => import('./floating-chat-bot'), { ssr: false })
 import "@uiw/react-md-editor/markdown-editor.css"
 import "@uiw/react-markdown-preview/markdown.css"
 import { API_BASE_URL } from "@/app/lib/config/env"
@@ -53,7 +56,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
     }
     return 16
   })
-  const [showGenOptions, setShowGenOptions] = useState(false)
+  const [showGenOptions, setShowGenOptions] = useState(true)
   const [genPrompt, setGenPrompt] = useState("")
   const [genWordCount, setGenWordCount] = useState("")
   const [genFreedom, setGenFreedom] = useState(false)
@@ -80,6 +83,7 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [currentIncompletePlot, setCurrentIncompletePlot] = useState<Plot | null>(null) // 真正的当前需要创作的情节
   const [isViewingCurrentPlot, setIsViewingCurrentPlot] = useState(true) // 是否正在查看当前需要创作的情节
+ // 控制悬浮聊天机器人显示
 
   // 通知后端内容已消费完成
   const notifyContentConsumed = async (planId: string) => {
@@ -1246,6 +1250,147 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
           </div>
           <div className="space-y-4 p-4">
 
+
+
+            {/* 内容生成 */}
+            <div className="rounded-md bg-accent/50 p-3">
+              <h4 className="font-medium">内容生成</h4>
+              <p className="mt-1 text-sm text-muted-foreground">
+                根据现有内容，自动生成后续情节。
+              </p>
+              {isGenerating ? (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium">生成进度：{generationProgress}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 mb-3">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300" 
+                      style={{ width: `${generationProgress}%` }}
+                    />
+                  </div>
+                  {generationMessage && (
+                    <div className="mt-2 mb-3 max-h-32 overflow-y-auto bg-muted/30 p-2 rounded text-xs whitespace-pre-wrap">
+                      {generationMessage}
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-muted-foreground">
+                      正在生成中，请稍候...
+                    </p>
+                    <Button 
+                      size="sm" 
+                      variant="destructive"
+                      onClick={() => {
+                        // 取消生成
+                        localStorage.removeItem('current_generation_plan_id');
+                        localStorage.removeItem('generation_polling_active');
+                        setIsGenerating(false);
+                        setGenerationMessage(""); // 清除消息
+                        toast.success("已取消内容生成");
+                      }}
+                    >
+                      取消生成
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {showGenOptions ? (
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-sm font-medium">生成选项</span>
+                      <Button size="sm" variant="ghost" onClick={() => setShowGenOptions(false)}>
+                        收起
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" className="mt-2 w-full" onClick={() => setShowGenOptions(true)}>生成内容</Button>
+                  )}
+                  {showGenOptions && (
+                    <div className="mt-3 space-y-2">
+                      {/* 创作模式选择 */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">创作模式</label>
+                        <div className="space-y-1">
+                          <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="freedom"
+                              checked={!genFreedom}
+                              onChange={() => setGenFreedom(false)}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-sm">按照未完成的情节创作（推荐）</span>
+                          </label>
+                          <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="freedom"
+                              checked={genFreedom}
+                              onChange={() => setGenFreedom(true)}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-sm">自由创作</span>
+                          </label>
+                        </div>
+                      </div>
+                      
+                      <textarea
+                        className="w-full rounded border bg-background px-2 py-1 text-sm"
+                        rows={2}
+                        placeholder="可选：写作提示建议（如风格、情节方向等）"
+                        value={genPrompt}
+                        onChange={e => setGenPrompt(e.target.value)}
+                      />
+                      
+                      {/* 只有在自由创作模式下才显示字数建议 */}
+                      {genFreedom && (
+                        <input
+                          type="number"
+                          className="w-full rounded border bg-background px-2 py-1 text-sm"
+                          placeholder="可选：字数建议（如500）"
+                          value={genWordCount}
+                          onChange={e => setGenWordCount(e.target.value)}
+                          min={0}
+                        />
+                      )}
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            handleGenerateContent({ 
+                              prompt: genPrompt, 
+                              wordCount: genFreedom ? genWordCount : undefined, // 只有自由创作时才传递字数建议
+                              freedom: genFreedom 
+                            })
+                            setShowGenOptions(false)
+                            setGenPrompt("")
+                            setGenWordCount("")
+                            setGenFreedom(false) // 重置为默认值
+                          }}
+                          disabled={isGenerating}
+                        >
+                          {isGenerating ? "生成中..." : "确认生成"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setShowGenOptions(false)
+                            setGenPrompt("")
+                            setGenWordCount("")
+                            setGenFreedom(false) // 重置为默认值
+                          }}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
             
             {/* 未完成的情节 */}
             {incompletePlot && (
@@ -1495,133 +1640,9 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
               </div>
             )}
 
-            <div className="rounded-md bg-accent/50 p-3">
-              <h4 className="font-medium">内容生成</h4>
-              <p className="mt-1 text-sm text-muted-foreground">
-                根据现有内容，自动生成后续情节。
-              </p>
-              {isGenerating ? (
-                <div className="mt-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm font-medium">生成进度：{generationProgress}%</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2 mb-3">
-                    <div 
-                      className="bg-primary h-2 rounded-full transition-all duration-300" 
-                      style={{ width: `${generationProgress}%` }}
-                    />
-                  </div>
-                  {generationMessage && (
-                    <div className="mt-2 mb-3 max-h-32 overflow-y-auto bg-muted/30 p-2 rounded text-xs whitespace-pre-wrap">
-                      {generationMessage}
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-muted-foreground">
-                      正在生成中，请稍候...
-                    </p>
-                    <Button 
-                      size="sm" 
-                      variant="destructive"
-                      onClick={() => {
-                        // 取消生成
-                        localStorage.removeItem('current_generation_plan_id');
-                        localStorage.removeItem('generation_polling_active');
-                        setIsGenerating(false);
-                        setGenerationMessage(""); // 清除消息
-                        toast.success("已取消内容生成");
-                      }}
-                    >
-                      取消生成
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <Button size="sm" className="mt-2 w-full" onClick={() => setShowGenOptions(true)}>生成内容</Button>
-              )}
-              {showGenOptions && !isGenerating && (
-                <div className="mt-3 space-y-2">
-                  {/* 创作模式选择 */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">创作模式</label>
-                    <div className="space-y-1">
-                      <label className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="freedom"
-                          checked={!genFreedom}
-                          onChange={() => setGenFreedom(false)}
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm">按照未完成的情节创作（推荐）</span>
-                      </label>
-                      <label className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="freedom"
-                          checked={genFreedom}
-                          onChange={() => setGenFreedom(true)}
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm">自由创作</span>
-                      </label>
-                    </div>
-                  </div>
-                  
-                  <textarea
-                    className="w-full rounded border bg-background px-2 py-1 text-sm"
-                    rows={2}
-                    placeholder="可选：写作提示建议（如风格、情节方向等）"
-                    value={genPrompt}
-                    onChange={e => setGenPrompt(e.target.value)}
-                  />
-                  
-                  {/* 只有在自由创作模式下才显示字数建议 */}
-                  {genFreedom && (
-                    <input
-                      type="number"
-                      className="w-full rounded border bg-background px-2 py-1 text-sm"
-                      placeholder="可选：字数建议（如500）"
-                      value={genWordCount}
-                      onChange={e => setGenWordCount(e.target.value)}
-                      min={0}
-                    />
-                  )}
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        handleGenerateContent({ 
-                          prompt: genPrompt, 
-                          wordCount: genFreedom ? genWordCount : undefined, // 只有自由创作时才传递字数建议
-                          freedom: genFreedom 
-                        })
-                        setShowGenOptions(false)
-                        setGenPrompt("")
-                        setGenWordCount("")
-                        setGenFreedom(false) // 重置为默认值
-                      }}
-                      disabled={isGenerating}
-                    >
-                      {isGenerating ? "生成中..." : "确认生成"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setShowGenOptions(false)
-                        setGenPrompt("")
-                        setGenWordCount("")
-                        setGenFreedom(false) // 重置为默认值
-                      }}
-                    >
-                      取消
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
+
+
+
             <div className="rounded-md bg-accent/50 p-3">
               <h4 className="font-medium">插入模板</h4>
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -1686,6 +1707,12 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
           </div>
         </div>
       )}
+      
+      {/* 悬浮聊天机器人 */}
+      <FloatingChatBot 
+        projectId={projectId}
+        projectName={chapter?.title || "当前项目"}
+      />
     </div>
   )
 } 

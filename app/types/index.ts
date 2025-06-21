@@ -198,7 +198,6 @@ export interface PlotElement {
 export interface NovelAnalysis {
   id: string
   type: 'pace' | 'emotion' | 'character-arc' | 'theme' | 'style'
-  chapterId?: string
   fullText?: boolean
   results: AnalysisResult[]
   createdAt: string
@@ -210,4 +209,48 @@ export interface AnalysisResult {
   description: string
   suggestions: string[]
   score?: number
+}
+
+// Project Chat Types
+export interface ProjectChatRequest {
+  message: string
+  sessionId?: string
+  enableVectorSearch?: boolean
+  maxVectorResults?: number
+  similarityThreshold?: number
+  mode?: 'CREATIVE' | 'ANALYSIS' | 'PLANNING' | 'REVIEW'
+  temperature?: number
+  maxTokens?: number
+}
+
+export interface ProjectChatMessage {
+  role: 'USER' | 'ASSISTANT' | 'SYSTEM'
+  content: string
+  timestamp: string
+  tokens: number
+  vectorResults?: VectorResult[]
+}
+
+export interface VectorResult {
+  entityType: string
+  entityId: number
+  similarity: number
+  content: string
+  metadata: string
+}
+
+export interface ProjectChatContext {
+  projectId: number
+  sessionId: string
+  messages: ProjectChatMessage[]
+  createdAt: string
+  updatedAt: string
+  turnCount: number
+  totalTokens: number
+}
+
+export interface ProjectChatResponse {
+  code: number
+  message: string
+  data?: ProjectChatContext
 } 
