@@ -16,6 +16,9 @@ export const generateMetadata = (): Metadata => {
   return {
     title: translations['site.title'][language],
     description: translations['site.description'][language],
+    icons: {
+      icon: '/favicon.svg',
+    }
   }
 }
 
