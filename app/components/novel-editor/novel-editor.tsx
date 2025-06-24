@@ -13,9 +13,10 @@ import { fetchEntriesPage } from "@/app/lib/api/entry"
 import type { Template, Entry, TemplateListDTO } from "@/app/types"
 import debounce from "lodash.debounce"
 import dynamic from "next/dynamic"
+import type { FloatingChatBotHandle } from './floating-chat-bot'
 
-// 动态导入FloatingChatBot组件
-const FloatingChatBot = dynamic(() => import('./floating-chat-bot'), { ssr: false })
+// 直接导入FloatingChatBot组件
+import FloatingChatBot from './floating-chat-bot'
 import "@uiw/react-md-editor/markdown-editor.css"
 import "@uiw/react-markdown-preview/markdown.css"
 import { API_BASE_URL } from "@/app/lib/config/env"
@@ -83,7 +84,13 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [currentIncompletePlot, setCurrentIncompletePlot] = useState<Plot | null>(null) // 真正的当前需要创作的情节
   const [isViewingCurrentPlot, setIsViewingCurrentPlot] = useState(true) // 是否正在查看当前需要创作的情节
- // 控制悬浮聊天机器人显示
+  const chatBotRef = useRef<FloatingChatBotHandle>(null)
+
+  const handleOpenChat = () => {
+    console.log('handleOpenChat called')
+    console.log('chatBotRef.current:', chatBotRef.current)
+    chatBotRef.current?.open()
+  }
 
   // 通知后端内容已消费完成
   const notifyContentConsumed = async (planId: string) => {
@@ -1100,619 +1107,629 @@ export default function NovelEditor({ projectId, chapterId }: NovelEditorProps) 
   }
 
   return (
-    <div className={`grid gap-6 ${isAiPanelOpen ? 'grid-cols-1 lg:grid-cols-[1fr_300px]' : 'grid-cols-1'} ${isFullscreen ? 'fixed inset-0 z-[9999] bg-background rounded-none shadow-none !p-0' : ''}`}>
-      <div className="flex flex-col rounded-lg border">
-        <div className="flex items-center border-b p-3">
-          <div className="flex-1">
-            <div className="flex items-center gap-1 text-sm">
-              <span className="font-medium">{chapter?.title || "未命名章节"}</span>
-              <span className="text-muted-foreground">•</span>
-              <span className="text-muted-foreground">{chapter?.status || "草稿"}</span>
-              {lastSaved && (
-                <>
-                  <span className="text-muted-foreground">•</span>
-                  <span className="text-muted-foreground">
-                    上次保存: {lastSaved.toLocaleTimeString()}
+    <>
+      <div className={`grid gap-6 ${isAiPanelOpen ? 'grid-cols-1 lg:grid-cols-[1fr_300px]' : 'grid-cols-1'} ${isFullscreen ? 'fixed inset-0 z-[9999] bg-background rounded-none shadow-none !p-0' : ''}`}>
+        <div className="flex flex-col rounded-lg border">
+          <div className="flex items-center border-b p-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-1 text-sm">
+                <span className="font-medium">{chapter?.title || "未命名章节"}</span>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-muted-foreground">{chapter?.status || "草稿"}</span>
+                {lastSaved && (
+                  <>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="text-muted-foreground">
+                      上次保存: {lastSaved.toLocaleTimeString()}
+                    </span>
+                  </>
+                )}
+                {isSaving && (
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    正在保存...
                   </span>
-                </>
-              )}
-              {isSaving && (
-                <span className="ml-2 text-xs text-muted-foreground">
-                  正在保存...
+                )}
+              </div>
+            </div>
+            {/* 字体大小下拉菜单 */}
+            <div className="flex items-center gap-2 ml-2">
+              <FaFont className="text-muted-foreground mr-1" />
+              <select
+                value={fontSize}
+                onChange={e => setFontSize(Number(e.target.value))}
+                className="rounded border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                style={{ minWidth: 90 }}
+                aria-label="字体大小"
+              >
+                <option value={14}>较小（14px）</option>
+                <option value={16}>标准（16px）</option>
+                <option value={18}>较大（18px）</option>
+                <option value={20}>大（20px）</option>
+                <option value={24}>超大（24px）</option>
+              </select>
+            </div>
+            {/* 全屏按钮 */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-2"
+              onClick={() => setIsFullscreen(f => !f)}
+              title={isFullscreen ? "退出全屏" : "全屏"}
+            >
+              {isFullscreen ? <IconMinimize className="h-4 w-4" /> : <IconMaximize className="h-4 w-4" />}
+            </Button>
+            <div className="flex items-center gap-2 ml-2">
+              <div className="flex border rounded-md overflow-hidden">
+                <Button 
+                  variant={viewMode === "edit" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none border-0"
+                  onClick={() => setViewMode("edit")}
+                >
+                  <IconEdit className="h-4 w-4 mr-1" />
+                  编辑
+                </Button>
+                <Button 
+                  variant={viewMode === "preview" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none border-0"
+                  onClick={() => setViewMode("preview")}
+                >
+                  <IconEye className="h-4 w-4 mr-1" />
+                  预览
+                </Button>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleManualSave}
+                disabled={isSaving}
+              >
+                <IconDeviceFloppy className="mr-1 h-4 w-4" />
+              保存
+              </Button>
+            </div>
+          </div>
+          
+          <div data-color-mode="light" className="flex-1 w-full">
+            {viewMode === "edit" && (
+              <div className="w-full">
+                <textarea
+                  ref={setEditorReference}
+                  value={content}
+                  onChange={(e) => handleChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="w-full h-[75vh] p-4 resize-none border-none bg-transparent focus:outline-none focus:ring-0"
+                  placeholder="开始写作您的小说内容..."
+                  spellCheck={false}
+                  style={{ fontSize: fontSize, lineHeight: 1.8 }}
+                />
+              </div>
+            )}
+            {viewMode === "preview" && (
+              <div
+                className="h-[75vh] p-4 overflow-auto prose prose-sm max-w-none"
+                style={{ fontSize: fontSize, lineHeight: 1.8, textIndent: 24 }}
+                ref={editorContainerRef}
+              >
+                <MDPreview
+                  source={content.replace(/^( {4})/gm, "")}
+                />
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center justify-between border-t p-3">
+            <div className="text-sm text-muted-foreground">
+              字数：{wordCount}
+              {chapter?.targetWordCount && (
+                <span className="ml-2">
+                  / 目标：{chapter.targetWordCount}
+                  {wordCount >= (chapter.targetWordCount || 0) && (
+                    <span className="ml-1 text-green-500">✓</span>
+                  )}
                 </span>
               )}
             </div>
-          </div>
-          {/* 字体大小下拉菜单 */}
-          <div className="flex items-center gap-2 ml-2">
-            <FaFont className="text-muted-foreground mr-1" />
-            <select
-              value={fontSize}
-              onChange={e => setFontSize(Number(e.target.value))}
-              className="rounded border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              style={{ minWidth: 90 }}
-              aria-label="字体大小"
-            >
-              <option value={14}>较小（14px）</option>
-              <option value={16}>标准（16px）</option>
-              <option value={18}>较大（18px）</option>
-              <option value={20}>大（20px）</option>
-              <option value={24}>超大（24px）</option>
-            </select>
-          </div>
-          {/* 全屏按钮 */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-2"
-            onClick={() => setIsFullscreen(f => !f)}
-            title={isFullscreen ? "退出全屏" : "全屏"}
-          >
-            {isFullscreen ? <IconMinimize className="h-4 w-4" /> : <IconMaximize className="h-4 w-4" />}
-          </Button>
-          <div className="flex items-center gap-2 ml-2">
-            <div className="flex border rounded-md overflow-hidden">
+            <div className="flex gap-2">
               <Button 
-                variant={viewMode === "edit" ? "default" : "ghost"}
+                variant="outline"
                 size="sm"
-                className="rounded-none border-0"
-                onClick={() => setViewMode("edit")}
+                onClick={() => setIsAiPanelOpen(!isAiPanelOpen)}
               >
-                <IconEdit className="h-4 w-4 mr-1" />
-                编辑
+                <IconRobot className="mr-2 h-4 w-4" />
+                {isAiPanelOpen ? "隐藏AI助手" : "显示AI助手"}
               </Button>
               <Button 
-                variant={viewMode === "preview" ? "default" : "ghost"}
                 size="sm"
-                className="rounded-none border-0"
-                onClick={() => setViewMode("preview")}
+                onClick={handleManualSave}
+                disabled={isSaving}
               >
-                <IconEye className="h-4 w-4 mr-1" />
-                预览
+                {isSaving ? "保存中..." : "保存内容"}
               </Button>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleManualSave}
-              disabled={isSaving}
-            >
-              <IconDeviceFloppy className="mr-1 h-4 w-4" />
-              保存
-            </Button>
           </div>
         </div>
-        
-        <div data-color-mode="light" className="flex-1 w-full">
-          {viewMode === "edit" && (
-            <div className="w-full">
-              <textarea
-                ref={setEditorReference}
-                value={content}
-                onChange={(e) => handleChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="w-full h-[75vh] p-4 resize-none border-none bg-transparent focus:outline-none focus:ring-0"
-                placeholder="开始写作您的小说内容..."
-                spellCheck={false}
-                style={{ fontSize: fontSize, lineHeight: 1.8 }}
-              />
+
+        {isAiPanelOpen && (
+          <div className="rounded-lg border">
+            <div className="border-b p-3">
+              <h3 className="font-semibold">AI 写作助手</h3>
             </div>
-          )}
-          {viewMode === "preview" && (
-            <div
-              className="h-[75vh] p-4 overflow-auto prose prose-sm max-w-none"
-              style={{ fontSize: fontSize, lineHeight: 1.8, textIndent: 24 }}
-              ref={editorContainerRef}
-            >
-              <MDPreview
-                source={content.replace(/^( {4})/gm, "")}
-              />
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center justify-between border-t p-3">
-          <div className="text-sm text-muted-foreground">
-            字数：{wordCount}
-            {chapter?.targetWordCount && (
-              <span className="ml-2">
-                / 目标：{chapter.targetWordCount}
-                {wordCount >= (chapter.targetWordCount || 0) && (
-                  <span className="ml-1 text-green-500">✓</span>
-                )}
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline"
-              size="sm"
-              onClick={() => setIsAiPanelOpen(!isAiPanelOpen)}
-            >
-              <IconRobot className="mr-2 h-4 w-4" />
-              {isAiPanelOpen ? "隐藏AI助手" : "显示AI助手"}
-            </Button>
-            <Button 
-              size="sm"
-              onClick={handleManualSave}
-              disabled={isSaving}
-            >
-              {isSaving ? "保存中..." : "保存内容"}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {isAiPanelOpen && (
-        <div className="rounded-lg border">
-          <div className="border-b p-3">
-            <h3 className="font-semibold">AI 写作助手</h3>
-          </div>
-          <div className="space-y-4 p-4">
+            <div className="space-y-4 p-4">
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={handleOpenChat}
+              >
+                <IconRobot className="mr-2 h-5 w-5" />
+                与AI助手对话
+              </Button>
 
 
-
-            {/* 内容生成 */}
-            <div className="rounded-md bg-accent/50 p-3">
-              <h4 className="font-medium">内容生成</h4>
-              <p className="mt-1 text-sm text-muted-foreground">
-                根据现有内容，自动生成后续情节。
-              </p>
-              {isGenerating ? (
-                <div className="mt-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm font-medium">生成进度：{generationProgress}%</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2 mb-3">
-                    <div 
-                      className="bg-primary h-2 rounded-full transition-all duration-300" 
-                      style={{ width: `${generationProgress}%` }}
-                    />
-                  </div>
-                  {generationMessage && (
-                    <div className="mt-2 mb-3 max-h-32 overflow-y-auto bg-muted/30 p-2 rounded text-xs whitespace-pre-wrap">
-                      {generationMessage}
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-muted-foreground">
-                      正在生成中，请稍候...
-                    </p>
-                    <Button 
-                      size="sm" 
-                      variant="destructive"
-                      onClick={() => {
-                        // 取消生成
-                        localStorage.removeItem('current_generation_plan_id');
-                        localStorage.removeItem('generation_polling_active');
-                        setIsGenerating(false);
-                        setGenerationMessage(""); // 清除消息
-                        toast.success("已取消内容生成");
-                      }}
-                    >
-                      取消生成
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {showGenOptions ? (
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-sm font-medium">生成选项</span>
-                      <Button size="sm" variant="ghost" onClick={() => setShowGenOptions(false)}>
-                        收起
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button size="sm" className="mt-2 w-full" onClick={() => setShowGenOptions(true)}>生成内容</Button>
-                  )}
-                  {showGenOptions && (
-                    <div className="mt-3 space-y-2">
-                      {/* 创作模式选择 */}
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">创作模式</label>
-                        <div className="space-y-1">
-                          <label className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="freedom"
-                              checked={!genFreedom}
-                              onChange={() => setGenFreedom(false)}
-                              className="w-4 h-4"
-                            />
-                            <span className="text-sm">按照未完成的情节创作（推荐）</span>
-                          </label>
-                          <label className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="freedom"
-                              checked={genFreedom}
-                              onChange={() => setGenFreedom(true)}
-                              className="w-4 h-4"
-                            />
-                            <span className="text-sm">自由创作</span>
-                          </label>
-                        </div>
-                      </div>
-                      
-                      <textarea
-                        className="w-full rounded border bg-background px-2 py-1 text-sm"
-                        rows={2}
-                        placeholder="可选：写作提示建议（如风格、情节方向等）"
-                        value={genPrompt}
-                        onChange={e => setGenPrompt(e.target.value)}
-                      />
-                      
-                      {/* 只有在自由创作模式下才显示字数建议 */}
-                      {genFreedom && (
-                        <input
-                          type="number"
-                          className="w-full rounded border bg-background px-2 py-1 text-sm"
-                          placeholder="可选：字数建议（如500）"
-                          value={genWordCount}
-                          onChange={e => setGenWordCount(e.target.value)}
-                          min={0}
-                        />
-                      )}
-                      
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            handleGenerateContent({ 
-                              prompt: genPrompt, 
-                              wordCount: genFreedom ? genWordCount : undefined, // 只有自由创作时才传递字数建议
-                              freedom: genFreedom 
-                            })
-                            setShowGenOptions(false)
-                            setGenPrompt("")
-                            setGenWordCount("")
-                            setGenFreedom(false) // 重置为默认值
-                          }}
-                          disabled={isGenerating}
-                        >
-                          {isGenerating ? "生成中..." : "确认生成"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setShowGenOptions(false)
-                            setGenPrompt("")
-                            setGenWordCount("")
-                            setGenFreedom(false) // 重置为默认值
-                          }}
-                        >
-                          取消
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            
-            {/* 未完成的情节 */}
-            {incompletePlot && (
+              {/* 内容生成 */}
               <div className="rounded-md bg-accent/50 p-3">
-                <div className="space-y-2 mb-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">
-                      {isViewingCurrentPlot ? "当前需要创作的情节" : "查看情节"}
-                    </h4>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setIsEditingPlot(!isEditingPlot)}
-                    >
-                      {isEditingPlot ? "取消" : "编辑"}
-                    </Button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center border rounded-md">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={switchToPreviousPlot}
-                          disabled={!incompletePlot?.sortOrder || incompletePlot.sortOrder <= 1}
-                          className="h-7 w-7 p-0 rounded-r-none border-r"
-                        >
-                          <IconChevronLeft className="h-3 w-3" />
-                        </Button>
-                        <div className="px-2 py-1 text-xs text-muted-foreground bg-muted/50 min-w-[24px] text-center">
-                          {incompletePlot?.sortOrder || 1}
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={switchToNextPlot}
-                          className="h-7 w-7 p-0 rounded-l-none border-l"
-                        >
-                          <IconChevronRight className="h-3 w-3" />
-                        </Button>
-                      </div>
+                <h4 className="font-medium">内容生成</h4>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  根据现有内容，自动生成后续情节。
+                </p>
+                {isGenerating ? (
+                  <div className="mt-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-medium">生成进度：{generationProgress}%</span>
                     </div>
-                    
-                    {!isViewingCurrentPlot && currentIncompletePlot && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={backToCurrentPlot}
-                        className="h-7 px-3 text-xs"
-                      >
-                        <IconRefresh className="h-3 w-3 mr-1" />
-                        回到当前
-                      </Button>
+                    <div className="w-full bg-muted rounded-full h-2 mb-3">
+                      <div 
+                        className="bg-primary h-2 rounded-full transition-all duration-300" 
+                        style={{ width: `${generationProgress}%` }}
+                      />
+                    </div>
+                    {generationMessage && (
+                      <div className="mt-2 mb-3 max-h-32 overflow-y-auto bg-muted/30 p-2 rounded text-xs whitespace-pre-wrap">
+                        {generationMessage}
+                      </div>
                     )}
-                  </div>
-                </div>
-                
-                {isEditingPlot ? (
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      className="w-full rounded border bg-background px-2 py-1 text-sm"
-                      placeholder="情节标题"
-                      value={plotTitle}
-                      onChange={e => setPlotTitle(e.target.value)}
-                    />
-                    
-                    <textarea
-                      className="w-full rounded border bg-background px-2 py-1 text-sm"
-                      rows={3}
-                      placeholder="情节描述"
-                      value={plotDescription}
-                      onChange={e => setPlotDescription(e.target.value)}
-                    />
-                    
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="text-xs text-muted-foreground">类型</label>
-                        <select
-                          className="w-full rounded border bg-background px-2 py-1 text-sm"
-                          value={plotType}
-                          onChange={e => setPlotType(e.target.value)}
-                        >
-                          <option value="">选择类型</option>
-                          <option value="开端">开端</option>
-                          <option value="发展">发展</option>
-                          <option value="高潮">高潮</option>
-                          <option value="结局">结局</option>
-                          <option value="转折">转折</option>
-                          <option value="冲突">冲突</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="text-xs text-muted-foreground">字数目标</label>
-                        <NumberInput
-                          value={plotWordCountGoal}
-                          onChange={setPlotWordCountGoal}
-                          placeholder="字数目标"
-                          min={0}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="text-xs text-muted-foreground">完成度(%)</label>
-                        <NumberInput
-                          value={plotCompletionPercentage}
-                          onChange={(value) => setPlotCompletionPercentage(value || 0)}
-                          placeholder="0-100"
-                          min={0}
-                          max={100}
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="text-xs text-muted-foreground">模板</label>
-                      <select
-                        className="w-full rounded border bg-background px-2 py-1 text-sm"
-                        value={plotTemplateId}
-                        onChange={e => setPlotTemplateId(e.target.value)}
-                        disabled={isLoadingData}
-                      >
-                        <option value="">选择模板</option>
-                        {templates.map(template => (
-                          <option key={template.id} value={template.id}>
-                            {template.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="text-xs text-muted-foreground">关联角色</label>
-                      <select
-                        multiple
-                        className="w-full rounded border bg-background px-2 py-1 text-sm min-h-[60px]"
-                        value={plotCharacterIds}
-                        onChange={e => {
-                          const selected = Array.from(e.target.selectedOptions, option => option.value)
-                          setPlotCharacterIds(selected)
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs text-muted-foreground">
+                        正在生成中，请稍候...
+                      </p>
+                      <Button 
+                        size="sm" 
+                        variant="destructive"
+                        onClick={() => {
+                          // 取消生成
+                          localStorage.removeItem('current_generation_plan_id');
+                          localStorage.removeItem('generation_polling_active');
+                          setIsGenerating(false);
+                          setGenerationMessage(""); // 清除消息
+                          toast.success("已取消内容生成");
                         }}
-                        disabled={isLoadingData}
                       >
-                        {characters.map(character => (
-                          <option key={character.id} value={character.id}>
-                            {character.name} ({character.role || "未知角色"})
-                          </option>
-                        ))}
-                      </select>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        按住Ctrl/Cmd键可多选
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="text-xs text-muted-foreground">关联条目</label>
-                      <select
-                        multiple
-                        className="w-full rounded border bg-background px-2 py-1 text-sm min-h-[60px]"
-                        value={plotItemIds}
-                        onChange={e => {
-                          const selected = Array.from(e.target.selectedOptions, option => option.value)
-                          setPlotItemIds(selected)
-                        }}
-                        disabled={isLoadingData}
-                      >
-                        {entries.map(entry => (
-                          <option key={entry.id} value={entry.id}>
-                            {entry.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        按住Ctrl/Cmd键可多选
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={savePlot} disabled={isLoadingData}>
-                        {isLoadingData ? "加载中..." : "保存"}
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={cancelEditPlot}>
-                        取消
+                        取消生成
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <div className="font-medium text-sm">{incompletePlot.title || "未命名情节"}</div>
-                    <div className="text-sm text-muted-foreground max-h-20 overflow-y-auto">
-                      <div className="break-words">
-                        {incompletePlot.description || "暂无描述"}
+                  <>
+                    {showGenOptions ? (
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-sm font-medium">生成选项</span>
+                        <Button size="sm" variant="ghost" onClick={() => setShowGenOptions(false)}>
+                          收起
+                        </Button>
                       </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div>
-                        <span className="text-muted-foreground">类型: </span>
-                        <span>{incompletePlot.type || "未设置"}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">字数目标: </span>
-                        <span>{incompletePlot.wordCountGoal || "未设置"}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">完成度: </span>
-                        <span>{incompletePlot.completionPercentage || 0}%</span>
-                      </div>
-                    </div>
-                    
-                    {incompletePlot.templateId && (
-                      <div className="text-xs">
-                        <span className="text-muted-foreground">模板: </span>
-                        <span className="break-words">
-                          {templates.find(t => t.id === incompletePlot.templateId)?.name || "未知模板"}
-                        </span>
-                      </div>
+                    ) : (
+                      <Button size="sm" className="mt-2 w-full" onClick={() => setShowGenOptions(true)}>生成内容</Button>
                     )}
-                    
-                    {incompletePlot.characterIds && incompletePlot.characterIds.length > 0 && (
-                      <div className="text-xs">
-                        <span className="text-muted-foreground">关联角色: </span>
-                        <div className="break-words mt-1">
-                          {incompletePlot.characterIds
-                            .map(id => characters.find(c => c.id === id)?.name)
-                            .filter(Boolean)
-                            .join(", ") || "未找到角色"}
+                    {showGenOptions && (
+                      <div className="mt-3 space-y-2">
+                        {/* 创作模式选择 */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">创作模式</label>
+                          <div className="space-y-1">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="freedom"
+                                checked={!genFreedom}
+                                onChange={() => setGenFreedom(false)}
+                                className="w-4 h-4"
+                              />
+                              <span className="text-sm">按照未完成的情节创作（推荐）</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="freedom"
+                                checked={genFreedom}
+                                onChange={() => setGenFreedom(true)}
+                                className="w-4 h-4"
+                              />
+                              <span className="text-sm">自由创作</span>
+                            </label>
+                          </div>
+                        </div>
+                        
+                        <textarea
+                          className="w-full rounded border bg-background px-2 py-1 text-sm"
+                          rows={2}
+                          placeholder="可选：写作提示建议（如风格、情节方向等）"
+                          value={genPrompt}
+                          onChange={e => setGenPrompt(e.target.value)}
+                        />
+                        
+                        {/* 只有在自由创作模式下才显示字数建议 */}
+                        {genFreedom && (
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-sm"
+                            placeholder="可选：字数建议（如500）"
+                            value={genWordCount}
+                            onChange={e => setGenWordCount(e.target.value)}
+                            min={0}
+                          />
+                        )}
+                        
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              handleGenerateContent({ 
+                                prompt: genPrompt, 
+                                wordCount: genFreedom ? genWordCount : undefined, // 只有自由创作时才传递字数建议
+                                freedom: genFreedom 
+                              })
+                              setShowGenOptions(false)
+                              setGenPrompt("")
+                              setGenWordCount("")
+                              setGenFreedom(false) // 重置为默认值
+                            }}
+                            disabled={isGenerating}
+                          >
+                            {isGenerating ? "生成中..." : "确认生成"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setShowGenOptions(false)
+                              setGenPrompt("")
+                              setGenWordCount("")
+                              setGenFreedom(false) // 重置为默认值
+                            }}
+                          >
+                            取消
+                          </Button>
                         </div>
                       </div>
                     )}
-                    
-                    {incompletePlot.itemIds && incompletePlot.itemIds.length > 0 && (
-                      <div className="text-xs">
-                        <span className="text-muted-foreground">关联条目: </span>
-                        <div className="break-words mt-1">
-                          {incompletePlot.itemIds
-                            .map(id => entries.find(e => e.id === id)?.name)
-                            .filter(Boolean)
-                            .join(", ") || "未找到条目"}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  </>
                 )}
               </div>
-            )}
+              
+              {/* 未完成的情节 */}
+              {incompletePlot && (
+                <div className="rounded-md bg-accent/50 p-3">
+                  <div className="space-y-2 mb-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">
+                        {isViewingCurrentPlot ? "当前需要创作的情节" : "查看情节"}
+                      </h4>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setIsEditingPlot(!isEditingPlot)}
+                      >
+                        {isEditingPlot ? "取消" : "编辑"}
+                      </Button>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center border rounded-md">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={switchToPreviousPlot}
+                            disabled={!incompletePlot?.sortOrder || incompletePlot.sortOrder <= 1}
+                            className="h-7 w-7 p-0 rounded-r-none border-r"
+                          >
+                            <IconChevronLeft className="h-3 w-3" />
+                          </Button>
+                          <div className="px-2 py-1 text-xs text-muted-foreground bg-muted/50 min-w-[24px] text-center">
+                            {incompletePlot?.sortOrder || 1}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={switchToNextPlot}
+                            className="h-7 w-7 p-0 rounded-l-none border-l"
+                          >
+                            <IconChevronRight className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {!isViewingCurrentPlot && currentIncompletePlot && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={backToCurrentPlot}
+                          className="h-7 px-3 text-xs"
+                        >
+                          <IconRefresh className="h-3 w-3 mr-1" />
+                          回到当前
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {isEditingPlot ? (
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        className="w-full rounded border bg-background px-2 py-1 text-sm"
+                        placeholder="情节标题"
+                        value={plotTitle}
+                        onChange={e => setPlotTitle(e.target.value)}
+                      />
+                      
+                      <textarea
+                        className="w-full rounded border bg-background px-2 py-1 text-sm"
+                        rows={3}
+                        placeholder="情节描述"
+                        value={plotDescription}
+                        onChange={e => setPlotDescription(e.target.value)}
+                      />
+                      
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">类型</label>
+                          <select
+                            className="w-full rounded border bg-background px-2 py-1 text-sm"
+                            value={plotType}
+                            onChange={e => setPlotType(e.target.value)}
+                          >
+                            <option value="">选择类型</option>
+                            <option value="开端">开端</option>
+                            <option value="发展">发展</option>
+                            <option value="高潮">高潮</option>
+                            <option value="结局">结局</option>
+                            <option value="转折">转折</option>
+                            <option value="冲突">冲突</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="text-xs text-muted-foreground">字数目标</label>
+                          <NumberInput
+                            value={plotWordCountGoal}
+                            onChange={setPlotWordCountGoal}
+                            placeholder="字数目标"
+                            min={0}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="text-xs text-muted-foreground">完成度(%)</label>
+                          <NumberInput
+                            value={plotCompletionPercentage}
+                            onChange={(value) => setPlotCompletionPercentage(value || 0)}
+                            placeholder="0-100"
+                            min={0}
+                            max={100}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs text-muted-foreground">模板</label>
+                        <select
+                          className="w-full rounded border bg-background px-2 py-1 text-sm"
+                          value={plotTemplateId}
+                          onChange={e => setPlotTemplateId(e.target.value)}
+                          disabled={isLoadingData}
+                        >
+                          <option value="">选择模板</option>
+                          {templates.map(template => (
+                            <option key={template.id} value={template.id}>
+                              {template.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs text-muted-foreground">关联角色</label>
+                        <select
+                          multiple
+                          className="w-full rounded border bg-background px-2 py-1 text-sm min-h-[60px]"
+                          value={plotCharacterIds}
+                          onChange={e => {
+                            const selected = Array.from(e.target.selectedOptions, option => option.value)
+                            setPlotCharacterIds(selected)
+                          }}
+                          disabled={isLoadingData}
+                        >
+                          {characters.map(character => (
+                            <option key={character.id} value={character.id}>
+                              {character.name} ({character.role || "未知角色"})
+                            </option>
+                          ))}
+                        </select>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          按住Ctrl/Cmd键可多选
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs text-muted-foreground">关联条目</label>
+                        <select
+                          multiple
+                          className="w-full rounded border bg-background px-2 py-1 text-sm min-h-[60px]"
+                          value={plotItemIds}
+                          onChange={e => {
+                            const selected = Array.from(e.target.selectedOptions, option => option.value)
+                            setPlotItemIds(selected)
+                          }}
+                          disabled={isLoadingData}
+                        >
+                          {entries.map(entry => (
+                            <option key={entry.id} value={entry.id}>
+                              {entry.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          按住Ctrl/Cmd键可多选
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={savePlot} disabled={isLoadingData}>
+                          {isLoadingData ? "加载中..." : "保存"}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelEditPlot}>
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="font-medium text-sm">{incompletePlot.title || "未命名情节"}</div>
+                      <div className="text-sm text-muted-foreground max-h-20 overflow-y-auto">
+                        <div className="break-words">
+                          {incompletePlot.description || "暂无描述"}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">类型: </span>
+                          <span>{incompletePlot.type || "未设置"}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">字数目标: </span>
+                          <span>{incompletePlot.wordCountGoal || "未设置"}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">完成度: </span>
+                          <span>{incompletePlot.completionPercentage || 0}%</span>
+                        </div>
+                      </div>
+                      
+                      {incompletePlot.templateId && (
+                        <div className="text-xs">
+                          <span className="text-muted-foreground">模板: </span>
+                          <span className="break-words">
+                            {templates.find(t => t.id === incompletePlot.templateId)?.name || "未知模板"}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {incompletePlot.characterIds && incompletePlot.characterIds.length > 0 && (
+                        <div className="text-xs">
+                          <span className="text-muted-foreground">关联角色: </span>
+                          <div className="break-words mt-1">
+                            {incompletePlot.characterIds
+                              .map(id => characters.find(c => c.id === id)?.name)
+                              .filter(Boolean)
+                              .join(", ") || "未找到角色"}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {incompletePlot.itemIds && incompletePlot.itemIds.length > 0 && (
+                        <div className="text-xs">
+                          <span className="text-muted-foreground">关联条目: </span>
+                          <div className="break-words mt-1">
+                            {incompletePlot.itemIds
+                              .map(id => entries.find(e => e.id === id)?.name)
+                              .filter(Boolean)
+                              .join(", ") || "未找到条目"}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
 
 
 
-            <div className="rounded-md bg-accent/50 p-3">
-              <h4 className="font-medium">插入模板</h4>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => {
-                    const template = '## 场景描写\n\n阳光透过窗帘洒在木地板上，形成一片温暖的光斑。房间里弥漫着咖啡的香气，墙上的挂钟滴答作响，标记着时间的流逝。'
-                    const newContent = content + '\n\n' + template
-                    setContent(newContent)
-                    contentRef.current = newContent // 同步更新ref
-                    countWords(newContent)
-                    debouncedSave(newContent) // 触发保存
-                  }}
-                >
-                  场景描写
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => {
-                    const template = '## 人物对话\n\n"你真的决定要走了吗？" 她轻声问道，眼睛里含着泪水。\n\n他深吸一口气，"我必须这么做，为了我们两个人。"\n\n"但是..." 她的声音哽咽了。'
-                    const newContent = content + '\n\n' + template
-                    setContent(newContent)
-                    contentRef.current = newContent // 同步更新ref
-                    countWords(newContent)
-                    debouncedSave(newContent) // 触发保存
-                  }}
-                >
-                  人物对话
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => {
-                    const template = '## 内心独白\n\n我站在窗前，看着外面的雨滴敲打着玻璃。为什么每次做出决定都如此艰难？也许是因为我太在乎后果，太担心失败。但人生不就是一系列选择和冒险吗？'
-                    const newContent = content + '\n\n' + template
-                    setContent(newContent)
-                    contentRef.current = newContent // 同步更新ref
-                    countWords(newContent)
-                    debouncedSave(newContent) // 触发保存
-                  }}
-                >
-                  内心独白
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => {
-                    const template = '## 转场\n\n---\n\n三个月后，当春天的第一缕阳光照耀着城市。'
-                    const newContent = content + '\n\n' + template
-                    setContent(newContent)
-                    contentRef.current = newContent // 同步更新ref
-                    countWords(newContent)
-                    debouncedSave(newContent) // 触发保存
-                  }}
-                >
-                  时间转场
-                </Button>
+              <div className="rounded-md bg-accent/50 p-3">
+                <h4 className="font-medium">插入模板</h4>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => {
+                      const template = '## 场景描写\n\n阳光透过窗帘洒在木地板上，形成一片温暖的光斑。房间里弥漫着咖啡的香气，墙上的挂钟滴答作响，标记着时间的流逝。'
+                      const newContent = content + '\n\n' + template
+                      setContent(newContent)
+                      contentRef.current = newContent // 同步更新ref
+                      countWords(newContent)
+                      debouncedSave(newContent) // 触发保存
+                    }}
+                  >
+                    场景描写
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => {
+                      const template = '## 人物对话\n\n"你真的决定要走了吗？" 她轻声问道，眼睛里含着泪水。\n\n他深吸一口气，"我必须这么做，为了我们两个人。"\n\n"但是..." 她的声音哽咽了。'
+                      const newContent = content + '\n\n' + template
+                      setContent(newContent)
+                      contentRef.current = newContent // 同步更新ref
+                      countWords(newContent)
+                      debouncedSave(newContent) // 触发保存
+                    }}
+                  >
+                    人物对话
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => {
+                      const template = '## 内心独白\n\n我站在窗前，看着外面的雨滴敲打着玻璃。为什么每次做出决定都如此艰难？也许是因为我太在乎后果，太担心失败。但人生不就是一系列选择和冒险吗？'
+                      const newContent = content + '\n\n' + template
+                      setContent(newContent)
+                      contentRef.current = newContent // 同步更新ref
+                      countWords(newContent)
+                      debouncedSave(newContent) // 触发保存
+                    }}
+                  >
+                    内心独白
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => {
+                      const template = '## 转场\n\n---\n\n三个月后，当春天的第一缕阳光照耀着城市。'
+                      const newContent = content + '\n\n' + template
+                      setContent(newContent)
+                      contentRef.current = newContent // 同步更新ref
+                      countWords(newContent)
+                      debouncedSave(newContent) // 触发保存
+                    }}
+                  >
+                    时间转场
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
       
       {/* 悬浮聊天机器人 */}
       <FloatingChatBot 
+        ref={chatBotRef}
         projectId={projectId}
         projectName={chapter?.title || "当前项目"}
       />
-    </div>
+    </>
   )
-} 
+}
