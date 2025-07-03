@@ -9,7 +9,7 @@ import { Button } from "@/app/components/ui/button"
 import PlotForm from "@/app/components/novel-editor/plot-form"
 import type { Plot } from "@/app/lib/api/plot"
 import type { PlotElement } from "@/app/types"
-import { fetchPlotsPage, createPlot, updatePlot, deletePlot, batchDeletePlots, autoExpandPlots } from "@/app/lib/api/plot"
+import { fetchPlotsPage, createPlot, updatePlot, deletePlot, batchDeletePlots, autoExpandPlots, fetchPlot } from "@/app/lib/api/plot"
 import { useLanguage } from '@/app/lib/i18n/language-context'
 
 // Helper to map Plot to PlotElement
@@ -41,6 +41,7 @@ export default function PlotsPage() {
     mode: "add" | "edit" | "delete"
     plot?: Plot
   }>({ isOpen: false, mode: "add" })
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false)
   
   // 批量删除相关状态
   const [selectedPlots, setSelectedPlots] = useState<string[]>([])
@@ -75,8 +76,20 @@ export default function PlotsPage() {
     setModalState({ isOpen: true, mode: "add" })
   }
 
-  const handleEditPlot = (plot: Plot) => {
-    setModalState({ isOpen: true, mode: "edit", plot })
+  const handleEditPlot = async (plot: Plot) => {
+    setIsFetchingDetails(true)
+    setError(null)
+    try {
+      // 获取情节的完整详情信息
+      const plotDetails = await fetchPlot(plot.id)
+      setModalState({ isOpen: true, mode: "edit", plot: plotDetails })
+    } catch (err: any) {
+      const msg = err?.message || '获取情节详情失败'
+      setError(msg)
+      window.alert(msg)
+    } finally {
+      setIsFetchingDetails(false)
+    }
   }
 
   const handleDeletePlot = (plot: Plot) => {
@@ -406,7 +419,14 @@ export default function PlotsPage() {
                     )}
                   </div>
                   <div className="flex justify-end gap-2 p-4 pt-0">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditPlot(plot)}>编辑</Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleEditPlot(plot)}
+                      disabled={isFetchingDetails}
+                    >
+                      {isFetchingDetails ? '加载中...' : '编辑'}
+                    </Button>
                     <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeletePlot(plot)}>删除</Button>
                   </div>
                 </div>

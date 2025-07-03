@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FaPlus } from 'react-icons/fa';
 import { Button } from "@/app/components/ui/button";
-import { fetchProjectsPage, deleteProject, Project, updateProject } from '@/app/lib/api/project';
+import { fetchProjectsPage, deleteProject, Project, updateProject, fetchProject, createProject } from '@/app/lib/api/project';
 import NovelSettingsForm from './novel-settings-form';
-import type { NovelProject, WorldBuilding } from '@/app/types';
+import type { NovelProject, NovelMetadata, WorldBuilding } from '@/app/types';
 import { fetchWorldsPage } from '@/app/lib/api/world';
 
 export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (refetch: () => void) => void, onCreateNew?: () => void }) {
@@ -17,6 +17,7 @@ export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (r
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccessMsg, setEditSuccessMsg] = useState<string | null>(null);
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
   const [worlds, setWorlds] = useState<WorldBuilding[]>([]);
 
@@ -62,10 +63,45 @@ export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (r
     }
   };
 
-  const handleEdit = (project: Project) => {
-    setEditingProject(project);
-    setEditModalOpen(true);
+  const handleEdit = async (project: Project) => {
+    setIsFetchingDetails(true);
     setEditError(null);
+    try {
+      // 获取项目的完整详情信息
+      const projectDetails = await fetchProject(project.id);
+      
+      // 转换为NovelProject格式，确保synopsis正确映射
+      const novelProject: NovelProject = {
+        id: projectDetails.id,
+        title: projectDetails.title,
+        genre: projectDetails.genre || '',
+        style: projectDetails.style || '',
+        type: projectDetails.type || '',
+        createdAt: projectDetails.createdAt || new Date().toISOString(),
+        updatedAt: projectDetails.updatedAt || new Date().toISOString(),
+        coverGradient: ["#4f46e5", "#818cf8"], // 默认渐变色
+        metadata: {
+          synopsis: projectDetails.synopsis || '', // 从Project.synopsis映射到metadata.synopsis
+          tags: projectDetails.tags || [],
+          targetAudience: projectDetails.targetAudience || '',
+          wordCountGoal: projectDetails.wordCountGoal || 0,
+          status: projectDetails.status as NovelMetadata['status'] || 'draft',
+          highlights: projectDetails.highlights || [],
+          writingRequirements: projectDetails.writingRequirements || [],
+        },
+        worldId: projectDetails.worldId || '',
+        templateId: projectDetails.templateId || ''
+      };
+      
+      setEditingProject(novelProject as any);
+      setEditModalOpen(true);
+    } catch (err: any) {
+      const msg = err?.message || '获取项目详情失败';
+      setEditError(msg);
+      window.alert(msg);
+    } finally {
+      setIsFetchingDetails(false);
+    }
   };
 
   const handleEditSave = async (novelProject: NovelProject) => {
@@ -111,10 +147,42 @@ export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (r
   const formatDate = (date: string) =>
     new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(date));
 
-  const handleCreateProject = async (project: NovelProject) => {
-    // ...创建逻辑...
-    setCreateModalOpen(false);
-    fetchList();
+  const handleCreateProject = async (novelProject: NovelProject) => {
+    setCreateError(null);
+    setIsLoading(true);
+    try {
+      // 将NovelProject转换为Project API格式
+      const apiProject: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> = {
+        title: novelProject.title,
+        genre: novelProject.genre,
+        style: novelProject.style,
+        type: novelProject.type,
+        synopsis: novelProject.metadata.synopsis, // 从metadata.synopsis映射到Project.synopsis
+        tags: novelProject.metadata.tags,
+        targetAudience: novelProject.metadata.targetAudience,
+        wordCountGoal: novelProject.metadata.wordCountGoal,
+        highlights: novelProject.metadata.highlights,
+        writingRequirements: novelProject.metadata.writingRequirements,
+        status: novelProject.metadata.status,
+        worldId: novelProject.worldId,
+        templateId: novelProject.templateId,
+      };
+
+      await createProject(apiProject as Project);
+      setCreateModalOpen(false);
+      fetchList();
+    } catch (err: any) {
+      let msg = err?.message || '创建项目失败';
+      if (err?.response) {
+        try {
+          const data = await err.response.json();
+          if (data?.message) msg = data.message;
+        } catch {}
+      }
+      setCreateError(msg);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isLoading) return <div className="p-8 text-center">加载中...</div>;
@@ -138,7 +206,14 @@ export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (r
               </div>
             </Link>
             <div className="flex justify-end gap-2 mt-4">
-              <Button variant="ghost" size="sm" onClick={() => handleEdit(project)}>编辑</Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => handleEdit(project)}
+                disabled={isFetchingDetails}
+              >
+                {isFetchingDetails ? '加载中...' : '编辑'}
+              </Button>
               <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(project)}>删除</Button>
             </div>
           </div>
@@ -175,15 +250,15 @@ export default function ProjectList({ onRefetch, onCreateNew }: { onRefetch?: (r
         </div>
       )}
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[calc(100vh-32px)] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">新建项目</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg max-h-[calc(100vh-32px)] overflow-y-auto">
+            <h2 className="mb-4 text-xl font-bold">新建项目</h2>
             <NovelSettingsForm
               onSave={handleCreateProject}
               onCancel={() => setCreateModalOpen(false)}
               worlds={worlds}
             />
-            {createError && <div className="text-red-500 mt-2">{createError}</div>}
+            {createError && <div className="text-red-500 text-sm mt-2">{createError}</div>}
           </div>
         </div>
       )}

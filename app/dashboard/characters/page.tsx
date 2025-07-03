@@ -9,7 +9,7 @@ import DashboardHeader from "@/app/components/layout/dashboard-header"
 import { Button } from "@/app/components/ui/button"
 import CharacterForm from "@/app/components/novel-editor/character-form"
 import type { Character } from "@/app/types"
-import { fetchCharactersPage, createCharacter, updateCharacter, deleteCharacter } from "@/app/lib/api/character"
+import { fetchCharactersPage, createCharacter, updateCharacter, deleteCharacter, fetchCharacter } from "@/app/lib/api/character"
 import { useParams } from "next/navigation"
 
 export default function CharactersPage() {
@@ -24,6 +24,7 @@ export default function CharactersPage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false)
   const params = useParams();
   const projectId = params.projectId as string;
 
@@ -48,8 +49,20 @@ export default function CharactersPage() {
     setModalState({ isOpen: true, mode: "add" })
   }
 
-  const handleEditCharacter = (character: Character) => {
-    setModalState({ isOpen: true, mode: "edit", character })
+  const handleEditCharacter = async (character: Character) => {
+    setIsFetchingDetails(true)
+    setError(null)
+    try {
+      // 获取角色的完整详情信息
+      const characterDetails = await fetchCharacter(character.id)
+      setModalState({ isOpen: true, mode: "edit", character: characterDetails })
+    } catch (err: any) {
+      const msg = err?.message || '获取角色详情失败'
+      setError(msg)
+      window.alert(msg)
+    } finally {
+      setIsFetchingDetails(false)
+    }
   }
 
   const handleDeleteCharacter = (character: Character) => {
@@ -272,7 +285,14 @@ export default function CharactersPage() {
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 p-4 pt-0">
-                  <Button variant="ghost" size="sm" onClick={() => handleEditCharacter(character)}>编辑</Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleEditCharacter(character)}
+                    disabled={isFetchingDetails}
+                  >
+                    {isFetchingDetails ? '加载中...' : '编辑'}
+                  </Button>
                   <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteCharacter(character)}>删除</Button>
                 </div>
               </div>

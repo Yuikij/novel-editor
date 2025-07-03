@@ -8,7 +8,7 @@ import DashboardHeader from "@/app/components/layout/dashboard-header"
 import { Button } from "@/app/components/ui/button"
 import WorldForm from "@/app/components/novel-editor/world-form"
 import type { WorldBuilding, WorldElement } from "@/app/types"
-import { fetchWorldsPage, createWorld, updateWorld, deleteWorld, World } from '@/app/lib/api/world';
+import { fetchWorldsPage, createWorld, updateWorld, deleteWorld, fetchWorld, World } from '@/app/lib/api/world';
 import { useLanguage } from "@/app/lib/i18n/language-context"
 import DashboardSidebar from "@/app/components/layout/dashboard-sidebar"
 
@@ -75,6 +75,7 @@ export default function WorldsPage() {
     mode: "add"
   })
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false)
 
   const fetchList = () => {
     setIsLoading(true)
@@ -92,8 +93,20 @@ export default function WorldsPage() {
     setModalState({ isOpen: true, mode: "add" })
   }
 
-  const handleEditWorld = (world: World) => {
-    setModalState({ isOpen: true, mode: "edit", world })
+  const handleEditWorld = async (world: World) => {
+    setIsFetchingDetails(true)
+    setHasError(null)
+    try {
+      // 获取世界的完整详情信息
+      const worldDetails = await fetchWorld(world.id)
+      setModalState({ isOpen: true, mode: "edit", world: worldDetails })
+    } catch (err: any) {
+      const msg = err?.message || '获取世界详情失败'
+      setHasError(msg)
+      window.alert(msg)
+    } finally {
+      setIsFetchingDetails(false)
+    }
   }
 
   const handleDeleteWorld = (world: World) => {
@@ -188,7 +201,14 @@ export default function WorldsPage() {
                 <h3 className="text-xl font-medium">{world.name}</h3>
                 <p className="text-muted-foreground mt-2 line-clamp-3 flex-grow">{world.description || ''}</p>
                 <div className="flex justify-end gap-2 mt-4">
-                  <Button variant="ghost" size="sm" onClick={() => handleEditWorld(world)}>{t('worlds.edit')}</Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleEditWorld(world)}
+                    disabled={isFetchingDetails}
+                  >
+                    {isFetchingDetails ? '加载中...' : t('worlds.edit')}
+                  </Button>
                   <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteWorld(world)}>{t('worlds.delete')}</Button>
                 </div>
               </div>
