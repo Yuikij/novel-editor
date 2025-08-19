@@ -416,7 +416,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     } else if (direction === 'down' && idx < newOutlines.length - 1) {
       [newOutlines[idx], newOutlines[idx + 1]] = [newOutlines[idx + 1], newOutlines[idx]]
     }
-    newOutlines = newOutlines.map((o, i) => ({ ...o, order: i + 1 }))
+    newOutlines = newOutlines.map((o, i) => ({ ...o, sortOrder: i + 1 }))
     setOutlines(newOutlines)
   }
 
@@ -1333,7 +1333,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
             )}
             
             <div className="space-y-3">
-              {outlines.sort((a, b) => a.order - b.order).map((outline, idx) => (
+              {outlines.sort((a, b) => a.sortOrder - b.sortOrder).map((outline, idx) => (
                 <div key={outline.id} className="flex items-start justify-between p-3 rounded-md border hover:border-primary/40 transition-colors gap-3">
                   <div className="flex items-start flex-1 gap-2 min-w-0">
                     <div className="flex-shrink-0 mt-1">

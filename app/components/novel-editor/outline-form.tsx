@@ -5,7 +5,7 @@ export interface OutlineNode {
   id: string
   title: string
   type: '起始' | '发展' | '高潮' | '结局' | '其他'
-  order: number
+  sortOrder: number
   description?: string
 }
 
@@ -21,7 +21,7 @@ export default function OutlineForm({ outline, onSave, onCancel }: OutlineFormPr
     id: outline?.id || `outline-${Date.now()}`,
     title: outline?.title || "",
     type: outline?.type || "起始",
-    order: outline?.order || 1,
+    sortOrder: outline?.sortOrder || 1,
     description: outline?.description || ""
   })
 
@@ -77,13 +77,13 @@ export default function OutlineForm({ outline, onSave, onCancel }: OutlineFormPr
           </div>
         </div>
         <div>
-          <label htmlFor="order" className="block text-sm font-medium">顺序</label>
+          <label htmlFor="sortOrder" className="block text-sm font-medium">顺序</label>
           <input
-            id="order"
-            name="order"
+            id="sortOrder"
+            name="sortOrder"
             type="number"
             min="1"
-            value={form.order}
+            value={form.sortOrder}
             onChange={handleFormChange}
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
